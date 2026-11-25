@@ -1,16 +1,20 @@
 # ESB & Gateway API Security Scanner
 
-A browser-based security assessment tool designed to analyze Enterprise Service Bus (ESB) configurations, API Gateway policies, OpenAPI specifications, certificates, and API monitoring data.
+A browser-based security assessment tool for reviewing Enterprise Service Bus (ESB) configurations, API Gateway policies, OpenAPI specifications, certificates, and API monitoring data.
 
-The scanner identifies potential security misconfigurations, exposed credentials, authentication weaknesses, transport security issues, missing rate limits, API governance gaps, and operational health concerns.
+The scanner uses rule-based analysis, API inventory extraction, certificate checks, endpoint health analysis, and optional AI-assisted configuration review to identify potential security weaknesses and configuration concerns.
 
 ## Overview
 
-The ESB & Gateway API Security Scanner helps security professionals, penetration testers, application security teams, and integration architects perform configuration-level security assessments of enterprise API infrastructure.
+The **ESB & Gateway API Security Scanner** is designed to help security professionals, penetration testers, application security teams, and integration architects assess the security posture of enterprise API and integration environments.
 
-It combines automated rule-based checks, API inventory extraction, certificate analysis, health monitoring, and optional AI-assisted configuration review.
+It analyzes uploaded configuration files and monitoring data to identify potential issues such as exposed credentials, authentication configuration gaps, insecure transport settings, missing rate-limiting policies, API governance concerns, and operational health indicators.
+
+The scanner provides findings with supporting evidence, severity classifications, references, and remediation recommendations to support security assessments.
 
 ## Supported Platforms
+
+The scanner includes platform-specific configuration analysis for:
 
 - MuleSoft
 - IBM App Connect Enterprise (ACE/IIB)
@@ -27,11 +31,11 @@ It combines automated rule-based checks, API inventory extraction, certificate a
 
 ### 1. Security Configuration Scanning
 
-Identifies potential security issues, including:
+Identifies potential security misconfigurations and sensitive information exposure, including:
 
 - Hardcoded credentials and passwords
-- AWS access key exposure
-- Embedded private keys
+- AWS access key exposure indicators
+- Embedded private key indicators
 - Hardcoded JWT and bearer tokens
 - Plain-text HTTP endpoints
 - Disabled TLS certificate validation
@@ -39,35 +43,35 @@ Identifies potential security issues, including:
 - Wildcard CORS configurations
 - Internal error information disclosure
 - Debug and trace logging
-- Sensitive information in application logs
+- Sensitive information written to application logs
 - Hardcoded internal IP addresses
-- TRACE and TRACK methods
+- TRACE and TRACK method references
 
 ### 2. Authentication and Authorization Checks
 
-Identifies potential authentication and access control weaknesses:
+Identifies potential authentication and access control configuration gaps, including:
 
 - Missing API authentication policies
-- Missing OAuth/JWT enforcement
-- Disabled API gateway enforcement
+- Missing OAuth/JWT enforcement indicators
+- Disabled API gateway enforcement indicators
 - Inactive IBM ACE administration security
 - Missing authentication plugins
 - Missing authentication handlers
 
 ### 3. Rate Limiting and API Protection
 
-Checks for missing or insufficient API protection policies:
+Checks for potential gaps in API protection policies, including:
 
 - Missing Kong rate-limiting plugins
 - Missing Apigee SpikeArrest and Quota policies
-- Missing Azure APIM rate limits
+- Missing Azure APIM rate-limit policies
 - Missing WSO2 throttling policies
-- Missing AWS API throttling or usage plans
-- API protection and schema validation gaps
+- Missing AWS API throttling or usage-plan configuration indicators
+- API protection and schema-validation gaps
 
 ### 4. API Inventory and Governance
 
-Extracts API information from supported configuration files:
+Extracts API information from supported configuration files, including:
 
 - API and service names
 - API paths and routes
@@ -77,11 +81,11 @@ Extracts API information from supported configuration files:
 - Rate-limiting configurations
 - API version information
 
-Also identifies potential duplicate API routes, older exposed API versions, and backend IP references.
+The inventory analysis also identifies potential duplicate API routes, older exposed API versions, and backend IP references.
 
 ### 5. Certificate Security Analysis
 
-Analyzes uploaded certificates for:
+Analyzes uploaded certificates to identify:
 
 - Expired certificates
 - Certificates approaching expiration
@@ -89,13 +93,13 @@ Analyzes uploaded certificates for:
 
 ### 6. API Health and Monitoring
 
-Supports monitoring CSV imports and generates a Python-based read-only probe script.
+Supports monitoring data imports and generates a Python-based read-only endpoint probe script.
 
-The health module analyzes:
+The health analysis can review:
 
 - API availability
 - HTTP response codes
-- p50 and p95 latency
+- p50 and p95 response latency
 - HTTP 5xx errors
 - TLS certificate expiry
 - HSTS header presence
@@ -103,52 +107,60 @@ The health module analyzes:
 - Unauthenticated GET responses
 - CORS origin reflection
 
+The generated probe performs GET requests and CORS checks without sending credentials or attack payloads.
+
 ### 7. AI-Assisted Security Review
 
-Provides optional AI-assisted configuration analysis for additional potential issues, including:
+Provides optional AI-assisted configuration analysis to identify additional potential security, configuration, and resilience concerns, including:
 
-- Missing timeouts
-- Missing circuit breakers
-- Authorization logic weaknesses
-- Unbounded payloads
-- Undocumented endpoints
+- Missing timeout configurations
+- Missing circuit-breaker configurations
+- Potential authorization logic weaknesses
+- Unbounded payload configurations
+- Undocumented endpoint indicators
 - Configuration and resilience concerns
 
-Detected secrets are masked before AI review.
+Detected secrets are masked before the configuration text is submitted for AI review.
 
-AI functionality requires the compatible AI integration runtime; it is not a standalone standard-browser feature.
+**Note:** AI functionality requires a compatible AI integration runtime. It is not a standalone feature of a standard browser environment.
 
 ### 8. Security Reporting and Export
 
-Supports security assessment reporting through:
+Supports assessment reporting through:
 
 - Excel (.xlsx) export
-- CSV export
+- CSV output
 - Custom master-list column mapping
 - Finding identifiers
 - Severity classification
-- CVSS approximate reference values
+- Approximate CVSS reference values
 - OWASP and CWE references
 - Remediation recommendations
 - Finding status tracking
 - Target remediation dates
 - Status dashboard
-- API inventory and endpoint health worksheets
+- API inventory worksheet
+- Endpoint health worksheet
+
+Excel export requires the compatible download integration. CSV output can be used as an alternative where that integration is unavailable.
 
 ## Supported File Formats
 
-| File Type | Extension |
+| File Type | Supported Extensions |
 |---|---|
-| XML | .xml |
-| YAML | .yaml, .yml |
-| JSON | .json |
-| ESQL | .esql |
-| IBM ACE Flow | .msgflow, .subflow |
-| TIBCO | .bwp, .bwm, .bwt |
-| Properties | .properties |
-| Certificates | .pem, .crt, .cer, .der |
-| Monitoring | .csv, .tsv |
-| Master list | .xlsx, .xlsm, .xls |
+| XML | `.xml` |
+| YAML | `.yaml`, `.yml` |
+| JSON | `.json` |
+| ESQL | `.esql` |
+| IBM ACE Flow | `.msgflow`, `.subflow` |
+| TIBCO | `.bwp`, `.bwm`, `.bwt` |
+| Configuration variables | `.substvar` |
+| Properties | `.properties` |
+| Certificates | `.pem`, `.crt`, `.cer`, `.der` |
+| Monitoring data | `.csv`, `.tsv` |
+| Master list | `.xlsx`, `.xlsm`, `.xls` |
+
+The scanner also supports pasting configuration content directly into the application.
 
 ## Installation
 
@@ -156,11 +168,11 @@ No local package installation is required for the basic browser-based scanner.
 
 ### Option 1: Download from GitHub
 
-1. Open the repository.
-2. Click the Code button.
-3. Select Download ZIP.
+1. Open the project repository.
+2. Click the **Code** button.
+3. Select **Download ZIP**.
 4. Extract the downloaded archive.
-5. Open index.html in a modern web browser.
+5. Open `index.html` in a modern web browser.
 
 ### Option 2: Clone the Repository
 
@@ -170,15 +182,17 @@ git clone https://github.com/Swanoop10082001/esb-gateway-api-security-scanner.gi
 cd esb-gateway-api-security-scanner
 ```
 
-Open `index.html` in your browser.
+Open `index.html` in a modern web browser.
 
-The application uses external CDN libraries for YAML and Excel processing, so internet connectivity is required for those dependencies.
+**Important:** Rename the original scanner HTML file to `index.html` before publishing the repository if it has not already been renamed.
+
+The application uses external CDN libraries for YAML and Excel processing. Internet connectivity is therefore required to load those dependencies.
 
 ## How to Use
 
 ### Step 1: Open the Scanner
 
-Open index.html in a modern web browser.
+Open `index.html` in a supported modern web browser.
 
 ### Step 2: Upload Configuration Files
 
@@ -186,11 +200,13 @@ Upload supported ESB, API Gateway, OpenAPI, certificate, or monitoring files.
 
 You can also paste configuration content directly into the scanner.
 
-### Step 3: Review Findings
+The application processes uploaded configuration files within the browser tab.
 
-Navigate to the Findings tab to review detected security issues.
+### Step 3: Review Security Findings
 
-Filter findings by:
+Navigate to the **Findings** tab to review detected security issues.
+
+Findings can be filtered by:
 
 - Severity
 - Platform
@@ -198,59 +214,83 @@ Filter findings by:
 - Status
 - Detection source
 
+Review the evidence and remediation recommendations for each finding.
+
 ### Step 4: Review API Inventory
 
-Navigate to API Inventory to inspect discovered API operations, paths, methods, backend services, authentication, and rate limiting.
+Navigate to **API Inventory** to inspect discovered API operations, including:
+
+- API paths and methods
+- Backend services
+- Authentication configuration
+- Rate-limiting configuration
+- Platform and source-file information
 
 ### Step 5: Perform Health Checks
 
-Generate the Python probe script and run it from an authorized network environment.
+Generate the Python probe script from the health and probe section.
 
-Import the resulting CSV into the scanner to review endpoint health.
+Run the generated script from an authorized network environment and import the resulting `probe_results.csv` file into the scanner.
+
+Review the endpoint availability, response latency, HTTP errors, TLS information, and other supported health indicators.
 
 ### Step 6: Perform Additional AI Review
 
 Where a compatible AI integration runtime is available, request an additional review of supported configuration files.
 
+AI-generated findings should be reviewed and validated before being included in a formal security assessment.
+
 ### Step 7: Export the Assessment
 
-Navigate to Export to Master List.
+Navigate to **Export to Master List**.
 
-Configure the environment, owner, SLA values, and column mappings.
+Configure the relevant assessment details, including:
 
-Export findings into Excel or CSV format.
+- Environment
+- Finding identifier prefix
+- Owner
+- SLA values
+- Master-list column mappings
+
+Export the assessment results using the available Excel or CSV functionality.
 
 ## Technology Stack
 
 - HTML5
 - CSS3
 - JavaScript
-- Python 3 (generated read-only probe)
+- Python 3 (generated read-only probe script)
 - js-yaml 4.1.0
 - SheetJS / XLSX 0.18.5
 - Optional AI integration
 
-## 📸 Dashboard Preview
+## Dashboard Preview
 
-![esb-gateway-api-security-scanner](ESB & Gateway Security Scanner Dashboard.png)
+![ESB & Gateway API Security Scanner Dashboard](dashboard-preview1.png)
+
+![ESB & Gateway API Security Scanner Dashboard](dashboard-preview1.png)
+
 
 ## Security and Privacy
 
-- Configuration files are processed locally in the browser for rule-based scanning.
-- Files are not uploaded to a project backend by the scanner.
-- Optional AI review sends redacted configuration text to the configured AI integration.
+- Rule-based configuration scanning is performed locally within the browser tab.
+- The scanner does not upload configuration files to a project backend.
+- Optional AI review sends configuration text to the configured AI integration after detected secrets are masked.
+- Secret masking is pattern-based and cannot guarantee detection of every sensitive value.
 - The generated Python probe sends GET requests and CORS-check requests without credentials or attack payloads.
-- Review sensitive configurations before uploading them to any external service.
+- Review sensitive configuration files before submitting them to any external AI service.
+- Run endpoint probes only against systems for which you have appropriate authorization.
 
 ## Important Limitations
 
 - Rule-based results are heuristic indicators and require manual validation.
-- Absence of a policy in an uploaded file does not prove that the policy is absent at the gateway or infrastructure level.
-- Full platform configuration bundles provide better results than isolated files.
-- The generated probe only performs the checks implemented in its script; it is not a comprehensive penetration test.
+- A policy not found in an uploaded file does not prove that the policy is absent from the gateway or infrastructure.
+- Full platform configuration bundles generally provide better analysis coverage than isolated files.
+- The generated probe performs only the checks implemented in its script; it is not a comprehensive vulnerability scanner or penetration test.
 - AI functionality depends on a compatible integration runtime.
-- Excel downloads also depend on the compatible download integration.
+- Excel downloads depend on the compatible download integration.
 - API inventory and security findings depend on the configuration information provided.
+- AI-generated observations and automated findings should be independently validated before being reported as confirmed vulnerabilities.
 
 ## Disclaimer
 
@@ -264,12 +304,10 @@ The scanner does not replace a comprehensive penetration test, manual security a
 
 Contributions, feature suggestions, bug reports, and improvements are welcome.
 
-Please submit issues or pull requests through GitHub.
+Please submit issues or pull requests through the GitHub repository.
 
 ## License
 
-This project is licensed under the MIT License.
+This project is intended to be distributed under the MIT License.
 
-You are free to use, copy, modify, distribute, and adapt this software in accordance with the MIT License terms.
-
-See the LICENSE file for details.
+See the `LICENSE` file for the applicable license terms. Ensure that the MIT License file is included in the repository before publishing the project under this license.

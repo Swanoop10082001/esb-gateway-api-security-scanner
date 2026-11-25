@@ -268,7 +268,7 @@ Export the assessment results using the available Excel or CSV functionality.
 
 ![ESB & Gateway API Security Scanner Dashboard](dashboard-preview1.png)
 
-![ESB & Gateway API Security Scanner Dashboard](dashboard-preview1.png)
+![ESB & Gateway API Security Scanner Dashboard](dashboard-preview2.png)
 
 
 ## Security and Privacy

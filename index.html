@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ESB &amp; Gateway API Scanner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* VOICE: a security desk's working instrument, plain and exact
+   IDEA: the audit worksheet a reviewer marks up, ruled table first
+   PICTURE: the live drop tray plus a severity ledger, then the findings table
+   COLOUR and TYPE: stone ground, black ink, brick for critical; Schibsted Grotesk
+   LAYOUT: intake band on top, tabbed ledger below, tables carry the page */
+:root{color-scheme:light dark;
+--bg:light-dark(#e7e4df,#171513);--panel:light-dark(#fff,#211f1c);--ink:light-dark(#141414,#ece8e2);
+--mute:light-dark(#5c5853,#a59f97);--line:light-dark(#cfcac2,#3a3631);--brick:light-dark(#c8371e,#e5583c);
+--hi:light-dark(#c4620f,#e98a3a);--md:light-dark(#9a7400,#d6b23a);--lo:light-dark(#466776,#86a9b8);--in:light-dark(#7d7872,#8e8880);--soft:light-dark(#f4f2ee,#2a2724)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Schibsted Grotesk",system-ui,sans-serif;overflow-x:clip}
+.band{padding:clamp(22px,3.5vw,48px) max(5vw,16px)}
+.wrap{max-width:1240px;margin:0 auto}
+h1{font-size:clamp(30px,4.4vw,46px);line-height:1.05;margin:0 0 10px;text-wrap:balance;font-weight:700;letter-spacing:-.01em}
+h2{font-size:22px;margin:0 0 12px}h3{font-size:17px;margin:18px 0 6px}
+.lede{color:var(--mute);max-width:62ch;margin:0}
+.hd{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:28px;align-items:end}
+.ledger{background:var(--panel);border:1px solid var(--line);padding:16px 18px}
+.ledger .tot{display:flex;align-items:baseline;gap:10px;margin-bottom:8px}
+.ledger .tot b{font-size:clamp(34px,5vw,52px);line-height:1}
+.ledger .tot span{color:var(--mute)}
+.sev{display:grid;grid-template-columns:5.5em minmax(0,1fr) 2.5em;gap:10px;align-items:center;font-size:14px;padding:3px 0}
+.sev i{display:block;height:12px;background:var(--c);min-width:2px}
+.sev em{font-style:normal;text-align:right;font-variant-numeric:tabular-nums}
+.drop{margin-top:22px;border:2px dashed var(--ink);background:var(--panel);padding:20px;display:grid;gap:8px;transition:background .15s}
+.drop.over{background:var(--soft);border-color:var(--brick)}
+.drop span{color:var(--mute);font-size:14px}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:4px}
+button,.btn{font:inherit;font-size:15px;min-height:44px;padding:8px 16px;border:1.5px solid var(--ink);background:var(--ink);color:var(--bg);cursor:pointer}
+button.ghost{background:transparent;color:var(--ink)}
+button:disabled{opacity:.45;cursor:default}
+button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--brick);outline-offset:2px}
+input,select,textarea{font:inherit;font-size:16px;min-height:44px;padding:8px 10px;border:1.5px solid var(--line);background:var(--panel);color:var(--ink)}
+textarea{width:100%;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px}
+.paste{margin-top:12px;display:grid;gap:8px}
+.note{font-size:13px;color:var(--mute);margin:10px 0 0}
+.files{list-style:none;padding:0;margin:14px 0 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:8px}
+.files li{background:var(--panel);border:1px solid var(--line);padding:8px 10px;display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:6px 8px;align-items:center}
+.files b{font-weight:500;overflow-wrap:anywhere;font-size:15px}
+.files small{grid-column:1/-1;color:var(--mute);font-size:13px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.files select{min-height:32px;padding:2px 6px;font-size:13px}
+.files button{min-height:36px;padding:4px 10px;font-size:13px}
+.noai [data-ai],.noai .aionly{display:none!important}
+.tabs{display:flex;gap:0;border-bottom:2px solid var(--ink);padding:0 max(5vw,16px);position:sticky;top:0;background:var(--bg);z-index:5}
+.tabs button{background:transparent;color:var(--mute);border:0;border-bottom:4px solid transparent;margin-bottom:-2px;flex:none;font-weight:500}
+.tabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--brick)}
+.tabs sup{font-size:12px;margin-left:4px;color:var(--mute)}
+section[hidden]{display:none}
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.filters input{flex:1 1 220px}
+table{width:100%;border-collapse:collapse;background:var(--panel);font-size:15px}
+th{text-align:left;font-weight:700;font-size:13px;color:var(--mute);border-bottom:2px solid var(--ink);padding:10px 10px 8px;white-space:nowrap}
+td{border-bottom:1px solid var(--line);padding:10px;vertical-align:top}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pill{display:inline-block;font-size:12px;font-weight:700;padding:2px 8px;color:#fff;background:var(--c);white-space:nowrap}
+.src{font-size:12px;color:var(--mute);border:1px solid var(--line);padding:1px 6px;white-space:nowrap}
+.ft{font-weight:500}
+.fd{color:var(--mute);font-size:14px;margin-top:2px}
+details summary{cursor:pointer;font-size:13px;color:var(--brick);margin-top:6px}
+code,pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px}
+code{overflow-wrap:anywhere;background:var(--soft);padding:1px 4px}
+pre{background:var(--soft);border:1px solid var(--line);padding:12px;max-height:420px}
+.bad{color:var(--brick);font-weight:500}
+.ok{color:var(--mute)}
+.empty{padding:28px;text-align:center;color:var(--mute);background:var(--panel);border:1px solid var(--line)}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px}
+.card{background:var(--panel);border:1px solid var(--line);padding:18px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+label{display:grid;gap:4px;font-size:13px;color:var(--mute)}
+.ai-out{white-space:normal;max-width:78ch}
+.ai-out p,.ai-out li{margin:4px 0}
+.map td{padding:6px}.map input{width:100%}
+.msg{font-size:14px;margin-top:8px;min-height:1.4em}
+.small{font-size:13px;color:var(--mute)}
+pre,.scroll{overflow-x:auto}.scroll a,.scroll button{flex:none}
+@media(max-width:860px){.hd,.grid2{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:600px){table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-block:10px;border-bottom:1px solid var(--line)}.stack td{display:flow-root;border:0;padding:3px 8px;padding-inline-start:8em;text-align:start}.stack td::before{content:attr(data-l);float:inline-start;width:7.5em;margin-inline-start:-8em;white-space:normal;color:var(--mute)}.stack td:empty{display:none}td.num{text-align:start}}
+@media(prefers-reduced-motion:reduce){.drop{transition:none}}
+</style><script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script></head>
+<body class="noai">
+<header class="band"><div class="wrap">
+  <div class="hd">
+    <div>
+      <h1>ESB &amp; Gateway API Scanner</h1>
+      <p class="lede">Drop exports from MuleSoft, IBM ACE/IIB, API Connect, WSO2, TIBCO, Kong, Apigee, Azure APIM or AWS API Gateway. Rule checks run instantly in this tab; Claude adds a deeper review when you ask.</p>
+    </div>
+    <div class="ledger" aria-live="polite"><div class="tot"><b id="totOpen">0</b><span id="totLbl">open findings</span></div><div id="sevbars"></div></div>
+  </div>
+  <div id="drop" class="drop" tabindex="0" role="button" aria-label="Add files">
+    <strong>Drop config files, OpenAPI specs, certificates or probe/monitoring CSVs here</strong>
+    <span>.xml .yaml .json .esql .msgflow .substvar .bwp .properties .pem .crt .csv — or drop your master-list .xlsx to copy its columns</span>
+    <div class="btns"><button id="pick">Choose files</button><button id="pasteBtn" class="ghost">Paste text</button><button id="sampleBtn" class="ghost">Load sample set</button><button id="clearBtn" class="ghost">Clear all</button></div>
+    <input type="file" id="fileIn" multiple hidden>
+  </div>
+  <div id="pasteBox" class="paste" hidden>
+    <input id="pasteName" placeholder="File name, e.g. kong.yaml" aria-label="File name">
+    <textarea id="pasteText" rows="8" placeholder="Paste configuration here" aria-label="Configuration text"></textarea>
+    <div class="btns"><button id="pasteAdd">Add to scan</button><button id="pasteCancel" class="ghost">Cancel</button></div>
+  </div>
+  <p id="sampleNote" class="note" hidden>Showing a built-in sample set (fictional hosts and keys). Choose “Clear all”, then drop your own exports.</p>
+  <ul id="files" class="files"></ul>
+  <p class="note">Files stay in this browser tab. Only an AI review sends text to Claude, and detected secrets are masked first.</p>
+</div></header>
+
+<nav class="tabs scroll" role="tablist">
+  <button role="tab" data-tab="findings" aria-selected="true">Findings<sup id="cF"></sup></button>
+  <button role="tab" data-tab="inventory" aria-selected="false">API inventory<sup id="cI"></sup></button>
+  <button role="tab" data-tab="health" aria-selected="false">Health &amp; probe<sup id="cH"></sup></button>
+  <button role="tab" data-tab="ai" aria-selected="false" class="aionly">AI review</button>
+  <button role="tab" data-tab="export" aria-selected="false">Export to master list</button>
+</nav>
+
+<main class="wrap">
+<section id="t-findings" class="band">
+  <div class="filters">
+    <select id="fSev" aria-label="Severity"><option value="">All severities</option></select>
+    <select id="fPlat" aria-label="Platform"><option value="">All platforms</option></select>
+    <select id="fCat" aria-label="Category"><option value="">All categories</option></select>
+    <select id="fStat" aria-label="Status"><option value="">All statuses</option></select>
+    <select id="fSrc" aria-label="Detected by"><option value="">Rules + AI + probe</option><option>Rule</option><option>AI</option><option>Probe</option></select>
+    <input id="fQ" type="search" placeholder="Search title, asset, file" aria-label="Search">
+  </div>
+  <div class="scroll"><table class="stack" id="fTab"><thead><tr><th>Severity</th><th>Finding</th><th>Where</th><th>Reference</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+  <div id="fEmpty" class="empty" hidden>No findings match. Add files above or relax the filters.</div>
+</section>
+
+<section id="t-inventory" class="band" hidden>
+  <p class="small" style="margin-top:0">Every route, flow, resource or operation found in the uploaded configs. “none” under auth or rate limit means nothing was found in what you uploaded; check gateway-level policies before closing.</p>
+  <div class="scroll"><table class="stack" id="iTab"><thead><tr><th>Platform</th><th>API / flow</th><th>Path</th><th>Methods</th><th>Backend</th><th>Auth</th><th>Rate limit</th><th>Source</th></tr></thead><tbody></tbody></table></div>
+  <div id="iEmpty" class="empty" hidden>No APIs found yet.</div>
+</section>
+
+<section id="t-health" class="band" hidden>
+  <div class="grid2">
+    <div class="card">
+      <h2>Live probe script</h2>
+      <p class="small">A browser tab can’t reach your internal gateways, so this builds a small Python 3 script (standard library only) from the inventory. Run it inside your network; it sends only GET and CORS-check requests, no credentials or attack payloads. Drop the CSV it writes back here.</p>
+      <div class="row"><label style="flex:1 1 260px">Gateway base URL for relative paths<input id="pBase" placeholder="https://api.yourcompany.com"></label><label>Rounds<input id="pRounds" type="number" min="1" max="50" value="5" style="width:90px"></label></div>
+      <div class="btns"><button id="pGen">Build script</button><button id="pCopy" class="ghost" disabled>Copy script</button></div>
+      <pre id="pOut" hidden></pre>
+    </div>
+    <div class="card">
+      <h2>What the probe CSV adds</h2>
+      <p class="small">Availability, p50/p95 latency, 5xx rate, TLS days left, HSTS, server version disclosure, endpoints answering 2xx with no credentials, and CORS that reflects any origin. Monitoring exports with columns like api, status_code and latency_ms work too.</p>
+    </div>
+  </div>
+  <h2 style="margin-top:28px">Endpoint health</h2>
+  <div class="scroll"><table class="stack" id="hTab"><thead><tr><th>Endpoint</th><th class="num">Requests</th><th class="num">Availability</th><th class="num">p50 ms</th><th class="num">p95 ms</th><th class="num">5xx</th><th class="num">TLS days</th><th>Flags</th></tr></thead><tbody></tbody></table></div>
+  <div id="hEmpty" class="empty" hidden>No probe or monitoring CSV yet.</div>
+</section>
+
+<section id="t-ai" class="band aionly" hidden>
+  <div class="grid2">
+    <div class="card">
+      <h2>Deep review</h2>
+      <p class="small">Claude reads each file (secrets masked, first 16,000 characters) and adds findings the rules can’t see: missing timeouts and circuit breakers, weak authorization logic, mass assignment, unbounded payloads, undocumented endpoints.</p>
+      <div class="btns"><button id="aiAll">Review all files</button><button id="aiStop" class="ghost" disabled>Stop</button></div>
+      <p id="aiMsg" class="msg"></p>
+    </div>
+    <div class="card">
+      <h2>Ask about these results</h2>
+      <form id="askF" class="row"><input id="askQ" style="flex:1 1 240px" placeholder="Which three fixes cut the most risk this sprint?" aria-label="Question"><button>Ask</button></form>
+      <div id="askOut" class="ai-out msg"></div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:24px">
+    <div class="row" style="justify-content:space-between"><h2 style="margin:0">Executive summary</h2><button id="sumBtn">Write summary</button></div>
+    <div id="sumOut" class="ai-out msg"></div>
+  </div>
+</section>
+
+<section id="t-export" class="band" hidden>
+  <div class="grid2">
+    <div class="card">
+      <h2>Row values</h2>
+      <div class="row">
+        <label>Environment<input id="xEnv" value="PROD" style="width:110px"></label>
+        <label>ID prefix<input id="xPre" value="ESBGW" style="width:120px"></label>
+        <label style="flex:1 1 160px">Owner<input id="xOwner" placeholder="Integration team"></label>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <label>SLA days: Critical<input id="sC" type="number" value="7" style="width:80px"></label>
+        <label>High<input id="sH" type="number" value="30" style="width:80px"></label>
+        <label>Medium<input id="sM" type="number" value="60" style="width:80px"></label>
+        <label>Low/Info<input id="sL" type="number" value="90" style="width:80px"></label>
+      </div>
+      <label style="display:flex;gap:8px;align-items:center;margin-top:12px;color:var(--ink);font-size:15px"><input type="checkbox" id="xFP" checked style="min-height:20px;width:20px"> Leave out findings marked False positive</label>
+      <div class="btns" style="margin-top:14px"><button id="xGo">Download .xlsx</button><button id="xCsv" class="ghost">Copy as CSV</button></div>
+      <p id="xMsg" class="msg"></p>
+      <p class="small">The workbook has your findings sheet, a Status Dashboard (severity × status, platform × severity), the API inventory and endpoint health.</p>
+    </div>
+    <div class="card">
+      <h2>Columns</h2>
+      <p class="small">To match your PROD master list, load it and the header row is copied and mapped. Fix any mapping below; it’s remembered in this browser.</p>
+      <div class="btns"><label class="btn ghost" style="display:inline-flex;align-items:center;color:var(--ink);background:transparent;font-size:15px">Load master list .xlsx<input type="file" id="wbIn" accept=".xlsx,.xlsm,.xls" hidden></label><button id="colAdd" class="ghost">Add column</button><button id="colReset" class="ghost">Reset</button></div>
+      <p id="wbMsg" class="msg small"></p>
+      <div class="scroll"><table class="map"><thead><tr><th>Header in workbook</th><th>Filled from</th><th></th></tr></thead><tbody id="colBody"></tbody></table></div>
+    </div>
+  </div>
+</section>
+</main>
+
+<script>
+{
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const LS={get(k,d){try{const v=localStorage.getItem('esbscan.'+k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem('esbscan.'+k,JSON.stringify(v))}catch(e){}}};
+const SEV=['Critical','High','Medium','Low','Info'];
+const SEVC={Critical:'var(--brick)',High:'var(--hi)',Medium:'var(--md)',Low:'var(--lo)',Info:'var(--in)'};
+const CVSS={Critical:9.1,High:7.5,Medium:5.3,Low:3.1,Info:0};
+const STATUSES=['Open','In progress','Accepted risk','False positive','Closed'];
+const PLAT={mule:'MuleSoft',ace:'IBM ACE/IIB',apic:'IBM API Connect',wso2:'WSO2',tibco:'TIBCO BW',kong:'Kong',apigee:'Apigee',azure:'Azure APIM',aws:'AWS API Gateway',oas:'OpenAPI',cert:'Certificate',mon:'Probe / monitoring CSV',unk:'Unknown'};
+const S={files:[],findings:[],inv:[],health:[],status:LS.get('status',{}),fid:1,sample:false,sheet:LS.get('sheet','')};
+const done=x=>x==='False positive'||x==='Closed';
+
+/* ---------- detection ---------- */
+function detect(name,t){
+  const n=name.toLowerCase();
+  if(/-----BEGIN CERTIFICATE-----/.test(t)||/\.(pem|crt|cer|der)$/.test(n))return 'cert';
+  if(/\.(csv|tsv)$/.test(n))return 'mon';
+  if(/x-ibm-configuration/.test(t))return 'apic';
+  if(/x-amazon-apigateway|"apiKeyRequired"|"authorizationType"/.test(t))return 'aws';
+  if(/<(APIProxy|ProxyEndpoint|TargetEndpoint|SpikeArrest|VerifyAPIKey|Quota|AssignMessage|OAuthV2)\b/.test(t))return 'apigee';
+  if(/<policies>[\s\S]*<(inbound|backend|outbound)>/.test(t))return 'azure';
+  if(/mulesoft\.org\/schema\/mule/.test(t))return 'mule';
+  if(/ws\.apache\.org\/ns\/synapse/.test(t)||/<api\b[^>]*\bcontext=/.test(t))return 'wso2';
+  if(/\.(substvar|bwp|bwm|bwt)$/.test(n)||/tibco\.com/.test(t))return 'tibco';
+  if(/\.(msgflow|subflow|esql|policyxml)$/.test(n)||/server\.conf\.ya?ml$/.test(n)||/CREATE\s+(COMPUTE|FILTER|DATABASE)\s+MODULE/i.test(t)||/ComIbm\w+\.msgnode|RestAdminListener|ResourceManagers\s*:/.test(t))return 'ace';
+  if(/admin_listen|proxy_listen/.test(t))return 'kong';
+  if((/_format_version/.test(t)||/^services\s*:\s*$/m.test(t))&&/\b(routes|plugins)\s*:/.test(t))return 'kong';
+  if(/^\s*["']?(openapi|swagger)["']?\s*:/m.test(t))return 'oas';
+  return 'unk';
+}
+
+/* ---------- helpers ---------- */
+function nlIndex(t){const a=[0];for(let i=0;i<t.length;i++)if(t.charCodeAt(i)===10)a.push(i+1);return a}
+function lineAt(f,i){const a=f.nl;let lo=0,hi=a.length-1;while(lo<hi){const m=(lo+hi+1)>>1;if(a[m]<=i)lo=m;else hi=m-1}return lo+1}
+function lineText(f,ln){const a=f.nl;return f.text.slice(a[ln-1],(a[ln]??f.text.length+1)-1).replace(/\r$/,'')}
+function findLine(f,s){const i=f.text.indexOf(s);return i<0?null:lineAt(f,i)}
+const attr=(g,n)=>(g.match(new RegExp('\\b'+n+'="([^"]*)"'))||[])[1]||'';
+const verOf=s=>{const m=String(s).match(/\bv(\d+(?:\.\d+)?)\b/i);return m?'v'+m[1]:''};
+const base=n=>n.replace(/\.[^.]+$/,'');
+const SECRET_RE=/\b(password|passwd|pwd|secret|client[_-]?secret|api[_-]?key|apikey|access[_-]?key|auth[_-]?token|private[_-]?key|passphrase)\b["']?\s*(?:=|:|>)\s*["']?([^\s"'<>,;}\]]{4,})/gi;
+const PLACEHOLDER=/^(\$\{|#\[|\{\{|\$\(|%\{|%[A-Z_]+%|#!|\*+$|secure::|p\(|\[\[|@\(|@\{|<|true$|false$|null$|none$|required$|string$|optional$|(vars|env|props?|properties|attributes|payload|context|request|response|flow|message|secrets?)\.)/i;
+function mask(s){
+  return String(s).replace(SECRET_RE,(m,k,v)=>PLACEHOLDER.test(v)?m:m.replace(v,v.slice(0,2)+'••••••'))
+   .replace(/\bAKIA[0-9A-Z]{12}([0-9A-Z]{4})\b/g,'AKIA••••$1').replace(/\beyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{8,}/g,'eyJ••••(jwt)');
+}
+function redact(t){
+  return t.replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,'***REDACTED PRIVATE KEY***')
+   .replace(SECRET_RE,(m,k,v)=>PLACEHOLDER.test(v)?m:m.replace(v,'***REDACTED***'))
+   .replace(/\bAKIA[0-9A-Z]{16}\b/g,'***REDACTED***').replace(/\beyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{8,}/g,'***REDACTED***');
+}
+function mk(o){const fp=[o.rule,o.file,o.line||'',o.asset||''].join('|');return {...o,fp,status:S.status[fp]||'Open'}}
+
+/* ---------- rules ---------- */
+const NS=/xmlns|schemaLocation|DOCTYPE|w3\.org|mulesoft\.org\/schema|ws\.apache\.org|springframework\.org|json-schema\.org|swagger\.io|ibm\.com\/(xmlns|xmlns)|tibco\.com\/(schema|xmlns|namespaces|xpath)|apache\.org\/(ns|xml)|xmlsoap\.org|oasis-open\.org/i;
+const RULES=[
+ {id:'SEC-001',p:'*',sev:'Critical',cat:'Secrets',t:'Hard-coded credential in configuration',secret:true,rec:'Move it to a vault (Mule secure properties, ACE credentials vault / mqsisetdbparms, WSO2 Secure Vault, Kong vaults, Azure Key Vault named values, AWS Secrets Manager, TIBCO obfuscated/externalised) and rotate it now.',ref:'CWE-798 · OWASP API8:2023'},
+ {id:'SEC-002',p:'*',sev:'Critical',cat:'Secrets',t:'AWS access key ID in file',re:/\bAKIA[0-9A-Z]{16}\b/g,rec:'Deactivate the key in IAM, rotate, and switch to roles or Secrets Manager.',ref:'CWE-798'},
+ {id:'SEC-003',p:'*',sev:'Critical',cat:'Secrets',t:'Private key embedded in file',re:/-----BEGIN (?:RSA |EC |DSA |ENCRYPTED |OPENSSH )?PRIVATE KEY-----/g,rec:'Remove the key from source, store it in a keystore/HSM, and reissue the certificate.',ref:'CWE-321'},
+ {id:'SEC-004',p:'*',sev:'High',cat:'Secrets',t:'Hard-coded bearer token / JWT',re:/\beyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]{8,}/g,rec:'Obtain tokens at runtime (client-credentials flow) instead of embedding them; revoke this one.',ref:'CWE-798'},
+ {id:'TLS-001',p:'*',sev:'High',cat:'Transport security',t:'Plain-text HTTP endpoint',re:/http:\/\/(?!localhost\b|127\.0\.0\.1|0\.0\.0\.0)[\w.-]+/g,skip:l=>NS.test(l),rec:'Use HTTPS (TLS 1.2+) for every listener and backend call, including internal hops.',ref:'CWE-319 · OWASP API8:2023'},
+ {id:'TLS-002',p:'*',sev:'High',cat:'Transport security',t:'TLS certificate validation disabled',re:/(\binsecure\s*=\s*["']?true|trust-?all|trust_all|\bverify_?ssl\s*[:=]\s*["']?false|\btls_verify\s*[:=]\s*["']?false|\bssl_verify\s*[:=]\s*["']?false|enableHostnameVerification\s*[:=]\s*["']?false|validateCertificateChain\s*[:=]\s*["']?false|<IgnoreValidationErrors>\s*true|ALLOW_ALL_HOSTNAME|NoopHostnameVerifier|<Enforce>\s*false\s*<\/Enforce>)/gi,rec:'Validate the backend certificate chain and hostname; add the backend CA to the truststore instead of trusting everything.',ref:'CWE-295'},
+ {id:'TLS-003',p:'*',sev:'Medium',cat:'Transport security',t:'Weak TLS protocol or cipher allowed',re:/\b(SSLv2|SSLv3|TLSv1(?:\.[01])?(?![.\d])|TLS_\w*(?:RC4|3DES|_DES_|NULL|EXPORT)\w*)\b/g,rec:'Allow only TLS 1.2/1.3 with AEAD cipher suites.',ref:'CWE-326'},
+ {id:'CORS-001',p:'*',sev:'Medium',cat:'CORS',t:'CORS allows any origin',re:/(Access-Control-Allow-Origin["']?\s*[:=,]?\s*["']?\*|<origin>\s*\*\s*<\/origin>|allow(?:ed)?[-_]?origins?["']?\s*[:=]\s*\[?\s*["']?\*|\borigins["']?\s*:\s*(?:\[\s*|\n\s*-\s*)["']?\*)/gi,rec:'List the exact trusted origins; never combine * with credentials.',ref:'CWE-942 · OWASP API8:2023'},
+ {id:'ERR-001',p:'*',sev:'Medium',cat:'Error handling',t:'Internal error details returned to callers',re:/(showStackTrace|includeStackTrace|printStackTrace|exposeErrorDetails|stack_?trace\s*[:=]\s*["']?true|<(?:ee:)?set-payload\b[^>]*error\.(?:description|detailedDescription|errorMessage)|context\.LastError\.(?:Message|Source))/gi,rec:'Return a generic error body with a correlation ID; log the detail server-side only.',ref:'CWE-209 · OWASP API8:2023'},
+ {id:'LOG-001',p:'*',sev:'Low',cat:'Logging',t:'Debug / trace logging enabled',re:/(\blog_?level\s*[:=]\s*["']?(?:debug|trace|all)\b|\blevel\s*=\s*["'](?:DEBUG|TRACE|ALL)["']|\bdebug\s*[:=]\s*["']?true\b|traceEnabled\s*[:=]\s*["']?true)/gi,rec:'Use INFO/WARN in PROD; enable debug only temporarily and scoped.',ref:'CWE-1295'},
+ {id:'LOG-002',p:'*',sev:'Medium',cat:'Logging',t:'Full payload or credentials written to logs',re:/(<logger\b[^>]*message=["'][^"']*#\[\s*(?:payload|attributes\.headers)|<log\s+level=["']full["']|<logger\b[^>]*message=["'][^"']*(?:authorization|password|token|secret)|log-to-eventhub[^<]*>[^<]*context\.Request\.Body)/gi,rec:'Log identifiers and metadata only; mask PII, tokens and card data before logging.',ref:'CWE-532'},
+ {id:'CFG-001',p:'*',sev:'Low',cat:'Configuration',t:'Hard-coded internal IP address',re:/\b(?:10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2})\b/g,rec:'Use DNS names or service discovery and externalise hosts per environment.',ref:'OWASP API9:2023'},
+ {id:'CFG-002',p:'*',sev:'Low',cat:'Configuration',t:'TRACE / TRACK method allowed',re:/\b(TRACE|TRACK)\b/g,skip:l=>!/method|verb|allow|\[|,/i.test(l)||/level|log/i.test(l),rec:'Remove TRACE/TRACK from allowed methods.',ref:'CWE-693'},
+ {id:'MULE-001',p:['mule'],sev:'Medium',cat:'Transport security',t:'Mule HTTP listener without TLS',re:/<http:listener-connection\b(?![^>]*protocol=["']HTTPS)[^>]*>/g,rec:'Set protocol="HTTPS" with a tls:context, or terminate TLS on the gateway and bind the listener to localhost only.',ref:'CWE-319'},
+ {id:'ACE-001',p:['ace'],sev:'High',cat:'Access control',t:'Integration server admin security inactive',re:/adminSecurity\s*:\s*['"]?inactive/gi,rec:'Set adminSecurity: active and define role-based permissions for the REST admin API.',ref:'CWE-306 · OWASP API5:2023'},
+ {id:'ACE-002',p:['ace'],sev:'High',cat:'Injection',t:'Dynamic SQL built by string concatenation (PASSTHRU)',re:/PASSTHRU\s*\([^;]*\|\|/gi,rec:'Use parameter markers: PASSTHRU(\'... WHERE ACCT = ?\' VALUES(acct)).',ref:'CWE-89 · OWASP API8:2023'},
+ {id:'ACE-003',p:['ace'],sev:'Medium',cat:'Error handling',t:'Exception list returned to caller',re:/SET\s+OutputRoot[^;]*ExceptionList/gi,rec:'Map exceptions to a generic error response and keep the ExceptionList in logs.',ref:'CWE-209'},
+ {id:'KONG-001',p:['kong'],sev:'High',cat:'Access control',t:'Kong Admin API listening on all interfaces',re:/admin_listen\s*[:=]\s*["']?0\.0\.0\.0/g,rec:'Bind admin_listen to 127.0.0.1 or a management network and protect it with RBAC.',ref:'OWASP API8:2023'},
+ {id:'APIC-001',p:['apic'],sev:'High',cat:'Access control',t:'API not enforced by gateway (enforced: false)',re:/enforced\s*:\s*false/g,rec:'Set enforced: true so the gateway applies security and plans.',ref:'OWASP API8:2023'},
+ {id:'APIC-002',p:['apic'],sev:'Low',cat:'Configuration',t:'Test tool enabled (testable: true)',re:/testable\s*:\s*true/g,rec:'Disable the test tool in PROD catalogs.',ref:'OWASP API8:2023'},
+ {id:'APIC-003',p:['apic'],sev:'Medium',cat:'Logging',t:'Activity log captures full payload',re:/content\s*:\s*payload/g,rec:'Set activity-log content to activity or header.',ref:'CWE-532'},
+ {id:'AWS-001',p:['aws'],sev:'Low',cat:'Configuration',t:'Default execute-api endpoint still enabled',re:/"?disableExecuteApiEndpoint"?\s*:\s*false/g,rec:'Disable the default endpoint when a custom domain fronts the API.',ref:'OWASP API8:2023'},
+];
+const ABSENT=[
+ {id:'APG-RL',p:'apigee',group:1,need:/<(SpikeArrest|Quota)\b/,sev:'High',cat:'Rate limiting',t:'No SpikeArrest or Quota policy in proxy',rec:'Attach SpikeArrest (burst) and Quota (per app) in the ProxyEndpoint PreFlow.',ref:'OWASP API4:2023'},
+ {id:'APG-AUTH',p:'apigee',group:1,need:/<(VerifyAPIKey|OAuthV2|VerifyJWT|VerifyJWS|BasicAuthentication|VerifyIAM)\b/,sev:'Critical',cat:'Authentication',t:'No authentication policy in proxy',rec:'Add OAuthV2 VerifyAccessToken or VerifyJWT to the PreFlow.',ref:'OWASP API2:2023 · CWE-306'},
+ {id:'APG-TP',p:'apigee',group:1,need:/<(JSONThreatProtection|XMLThreatProtection|RegularExpressionProtection|OASValidation)\b/,sev:'Medium',cat:'Input validation',t:'No threat-protection or schema validation policy',rec:'Add JSON/XML ThreatProtection and OASValidation to limit payload depth and size.',ref:'OWASP API4:2023 · CWE-20'},
+ {id:'AZ-RL',p:'azure',need:/<(rate-limit|rate-limit-by-key|quota|quota-by-key|llm-token-limit|azure-openai-token-limit)\b/,sev:'High',cat:'Rate limiting',t:'No rate-limit or quota policy',rec:'Add rate-limit-by-key (per subscription or client IP) and a quota.',ref:'OWASP API4:2023'},
+ {id:'AZ-AUTH',p:'azure',need:/<(validate-jwt|validate-azure-ad-token|validate-client-certificate|check-header|authentication-certificate|authentication-managed-identity)\b/,sev:'Medium',cat:'Authentication',t:'No token or certificate validation in policy',rec:'Add validate-jwt (or validate-azure-ad-token); subscription keys alone identify, they do not authenticate.',ref:'OWASP API2:2023'},
+ {id:'AZ-BASE',p:'azure',need:/<inbound>[\s\S]*?<base\s*\/>[\s\S]*?<\/inbound>/,applies:/<inbound>/,sev:'Medium',cat:'Configuration',t:'Inbound policy does not inherit <base />',rec:'Add <base /> to inbound so product/global policies (auth, limits) still run.',ref:'OWASP API8:2023'},
+ {id:'AZ-TO',p:'azure',need:/<forward-request\b[^>]*timeout="([1-9]|[1-5]\d|60)"/,applies:/<forward-request\b/,sev:'Low',cat:'Resilience',t:'Backend timeout missing or above 60 s',rec:'Set forward-request timeout to the backend SLO (e.g. 10–30 s) and add retry with limits.',ref:'OWASP API4:2023'},
+ {id:'MULE-GOV',p:'mule',need:/<api-gateway:autodiscovery\b/,applies:/<http:listener\b/,sev:'Medium',cat:'Inventory / governance',t:'HTTP listeners without API Manager autodiscovery',rec:'Add api-gateway:autodiscovery so API Manager policies (client-ID enforcement, JWT, rate limiting) apply.',ref:'OWASP API9:2023'},
+ {id:'WSO2-RL',p:'wso2',need:/throttl/i,applies:/<api\b/,sev:'High',cat:'Rate limiting',t:'Synapse API has no throttling',rec:'Apply a throttling policy (APIM subscription/advanced policy, or throttle mediator on MI).',ref:'OWASP API4:2023'},
+ {id:'WSO2-AUTH',p:'wso2',need:/AuthenticationHandler|BasicAuthHandler|oauth|<handler\b[^>]*(Auth|Security)/i,applies:/<api\b/,sev:'High',cat:'Authentication',t:'Synapse API has no authentication handler',rec:'Publish through WSO2 API Manager or add an auth handler to the API.',ref:'OWASP API2:2023 · CWE-306'},
+ {id:'ACE-TLS',p:'ace',need:/HTTPSConnector|httpsConnector|KeystoreFile|keystoreFile/,applies:/HTTPConnector|ListenerPort/,sev:'Medium',cat:'Transport security',t:'No HTTPS connector in server configuration',rec:'Configure ResourceManagers.HTTPSConnector with a keystore and disable the plain HTTP connector.',ref:'CWE-319'},
+ {id:'AWS-RL',p:'aws',need:/throttl|usagePlan/i,sev:'Medium',cat:'Rate limiting',t:'No throttling or usage plan in export',rec:'Set stage/method throttling and attach a usage plan.',ref:'OWASP API4:2023'},
+ {id:'APIC-RL',p:'apic',need:/rate-?limit/i,sev:'Medium',cat:'Rate limiting',t:'No rate limit in API definition',rec:'Confirm the product plan sets rate limits; add a ratelimit assembly policy for sensitive operations.',ref:'OWASP API4:2023'},
+];
+
+function applyRules(f,out){
+  const t=f.text,P=PLAT[f.platform];
+  for(const r of RULES){
+    if(r.p!=='*'&&!r.p.includes(f.platform))continue;
+    if(r.secret){
+      SECRET_RE.lastIndex=0;let m,n=0;const seen=new Set();
+      while((m=SECRET_RE.exec(t))&&n<15){
+        if(PLACEHOLDER.test(m[2])||/^[A-Z_]+$/.test(m[2]))continue;
+        const ln=lineAt(f,m.index);if(seen.has(ln))continue;seen.add(ln);n++;
+        out.push(mk({rule:r.id,sev:r.sev,cat:r.cat,title:r.t,desc:`A literal value is assigned to “${m[1]}”.`,rec:r.rec,ref:r.ref,platform:P,asset:f.asset,file:f.name,line:ln,evidence:mask(lineText(f,ln).trim()).slice(0,220),source:'Rule'}));
+      }
+      continue;
+    }
+    r.re.lastIndex=0;let m,n=0;const seen=new Set();
+    while((m=r.re.exec(t))&&n<15){
+      if(m[0]===''){r.re.lastIndex++;continue}
+      const ln=lineAt(f,m.index);if(seen.has(ln))continue;
+      const lt=lineText(f,ln);if(r.skip&&r.skip(lt))continue;
+      seen.add(ln);n++;
+      out.push(mk({rule:r.id,sev:r.sev,cat:r.cat,title:r.t,desc:'',rec:r.rec,ref:r.ref,platform:P,asset:f.asset,file:f.name,line:ln,evidence:mask(lt.trim()).slice(0,220),source:'Rule'}));
+    }
+  }
+  for(const a of ABSENT){
+    if(a.p!==f.platform||a.group)continue;
+    if(a.applies&&!a.applies.test(t))continue;
+    if(!a.need.test(t))out.push(mk({rule:a.id,sev:a.sev,cat:a.cat,title:a.t,desc:'Not found anywhere in this file.',rec:a.rec,ref:a.ref,platform:P,asset:f.asset,file:f.name,line:null,evidence:'',source:'Rule'}));
+  }
+}
+
+/* ---------- extractors (inventory) ---------- */
+const AUTHP=['key-auth','key-auth-enc','jwt','oauth2','openid-connect','basic-auth','hmac-auth','ldap-auth','ldap-auth-advanced','mtls-auth','oauth2-introspection'];
+const RLP=['rate-limiting','rate-limiting-advanced','response-ratelimiting'];
+function loadDoc(t){try{return jsyaml.load(t)}catch(e){try{return JSON.parse(t)}catch(_){return null}}}
+function exKong(f,out,inv){
+  const d=loadDoc(f.text);if(!d||!Array.isArray(d.services))return;
+  const allP=Array.isArray(d.plugins)?d.plugins:[];
+  const gl=allP.filter(p=>!p.service&&!p.route&&!p.consumer);
+  const ref=(x,n)=>x===n||(x&&x.name===n);
+  for(const s of d.services){
+    const sp=[...gl,...(s.plugins||[]),...allP.filter(p=>ref(p.service,s.name))];
+    const be=s.url||`${s.protocol||'http'}://${s.host||'?'}${s.port?':'+s.port:''}${s.path||''}`;
+    const routes=s.routes&&s.routes.length?s.routes:[{name:s.name,paths:['(no route)']}];
+    for(const r of routes){
+      const names=[...sp,...(r.plugins||[]),...allP.filter(p=>ref(p.route,r.name))].filter(p=>p&&p.enabled!==false).map(p=>p.name);
+      const au=names.filter(n=>AUTHP.includes(n)),rl=names.filter(n=>RLP.includes(n));
+      const methods=r.methods&&r.methods.length?r.methods:['ANY'];
+      const paths=r.paths&&r.paths.length?r.paths:[(r.hosts||['(host-based)']).join(', ')];
+      for(const p of paths)inv.push({platform:'Kong',name:s.name+(r.name&&r.name!==s.name?' / '+r.name:''),path:p,methods:methods.join(', '),backend:be,version:verOf(p+' '+s.name),auth:au.join(', ')||'none',rate:rl.join(', ')||'none',file:f.name});
+      const asset=`${s.name} ${paths.join(' ')}`.trim(),line=findLine(f,'name: '+(r.name||s.name));
+      if(!au.length)out.push(mk({rule:'KONG-AUTH',sev:methods.some(m=>/POST|PUT|PATCH|DELETE|ANY/i.test(m))?'Critical':'High',cat:'Authentication',title:'Kong route has no authentication plugin',desc:`Route ${r.name||'(unnamed)'} on service ${s.name} has no auth plugin at route, service or global scope.`,rec:'Enable openid-connect or jwt (key-auth at minimum) on the service or route.',ref:'OWASP API2:2023 · CWE-306',platform:'Kong',asset,file:f.name,line,evidence:'plugins: '+(names.join(', ')||'(none)'),source:'Rule'}));
+      if(!rl.length)out.push(mk({rule:'KONG-RL',sev:'High',cat:'Rate limiting',title:'Kong route has no rate limiting',desc:`Route ${r.name||'(unnamed)'} on service ${s.name} can be called without limits.`,rec:'Add rate-limiting (redis or cluster policy for multi-node) on the service or globally.',ref:'OWASP API4:2023',platform:'Kong',asset,file:f.name,line,evidence:'plugins: '+(names.join(', ')||'(none)'),source:'Rule'}));
+    }
+  }
+  f.asset=d.services.map(s=>s.name).slice(0,3).join(', ');
+}
+function exOAS(f,out,inv){
+  const d=loadDoc(f.text);if(!d||typeof d!=='object'||!d.paths)return;
+  const P=PLAT[f.platform],title=d.info?.title||base(f.name),ver=d.info?.version||'';
+  const b=d.servers?.[0]?.url||((d.host?(d.schemes?.[0]||'https')+'://'+d.host:'')+(d.basePath||''));
+  const all=JSON.stringify(d);
+  const tm=all.match(/"target-url"\s*:\s*"([^"]+)"/)||all.match(/"uri"\s*:\s*"(https?:[^"]+)"/);
+  const rate=/rate-?limit|throttl/i.test(all)?'in definition':'none';
+  const open=[];f.asset=title;
+  for(const [p,item] of Object.entries(d.paths)){
+    if(!item||typeof item!=='object')continue;
+    for(const m of ['get','put','post','delete','patch','head','options','trace']){
+      const op=item[m];if(!op)continue;
+      const sec=op.security!==undefined?op.security:d.security;
+      let authed=Array.isArray(sec)&&sec.some(o=>o&&Object.keys(o).length>0);
+      const aws=op['x-amazon-apigateway-auth']?.type;if(aws)authed=String(aws).toUpperCase()!=='NONE';
+      const sch=authed?((sec||[]).flatMap(o=>Object.keys(o||{})).join(', ')||String(aws)):'none';
+      inv.push({platform:P,name:title,path:(b?b.replace(/\/$/,''):'')+p,methods:m.toUpperCase(),backend:op['x-amazon-apigateway-integration']?.uri||(tm?tm[1]:'—'),version:ver||verOf(p),auth:sch,rate,file:f.name});
+      if(!authed)open.push(m.toUpperCase()+' '+p);
+    }
+  }
+  if(open.length){
+    const mut=open.some(x=>/^(POST|PUT|PATCH|DELETE)/.test(x));
+    out.push(mk({rule:'OAS-AUTH',sev:mut?'Critical':'High',cat:'Authentication',title:`${open.length} operation${open.length>1?'s':''} without a security requirement`,desc:`${title}: no security at root or operation level${mut?', including state-changing methods':''}.`,rec:'Declare a security scheme (OAuth2/JWT) at root and enforce it on the gateway; mark intentionally public operations with security: [] and document why.',ref:'OWASP API2:2023 · CWE-306',platform:P,asset:title,file:f.name,line:findLine(f,open[0].split(' ')[1]),evidence:open.slice(0,6).join(' · ')+(open.length>6?` … +${open.length-6} more`:''),source:'Rule'}));
+  }
+}
+function exApigee(files,out,inv){
+  if(!files.length)return;
+  const t=files.map(f=>f.text).join('\n').replace(/&quot;/g,'"');
+  const name=(t.match(/<APIProxy\b[^>]*name="([^"]+)"/)||[])[1]||base(files[0].name);
+  const bp=((t.match(/<BasePath>\s*([^<]*?)\s*<\/BasePath>/)||[])[1]||'').replace(/\/$/,'');
+  const tg=[...t.matchAll(/<URL>\s*([^<]*?)\s*<\/URL>/g)].map(m=>m[1]).join(', ')||((t.match(/<Server\s+name="([^"]+)"/)||[])[1]?'TargetServer':'—');
+  const au=[...new Set([...t.matchAll(/<(VerifyAPIKey|OAuthV2|VerifyJWT|VerifyJWS|BasicAuthentication)\b/g)].map(m=>m[1]))].join(', ')||'none';
+  const rl=[...new Set([...t.matchAll(/<(SpikeArrest|Quota)\b/g)].map(m=>m[1]))].join(', ')||'none';
+  const flows=[...t.matchAll(/<Condition>([^<]*)<\/Condition>/g)].map(m=>{const p=(m[1].match(/(?:MatchesPath|JavaRegex|Matches|~~|~|=)\s*"(\/[^"]*)"/)||[])[1];const v=(m[1].match(/request\.verb\s*(?:=|==|equals)\s*"(\w+)"/i)||[])[1];return p?{p,v:v||'ANY'}:null}).filter(Boolean);
+  const rows=flows.length?flows:[{p:'',v:'ANY'}];
+  for(const x of rows)inv.push({platform:'Apigee',name,path:(bp||'')+x.p||'/',methods:x.v,backend:tg,version:verOf(bp),auth:au,rate:rl,file:files.map(f=>f.name).join(', ')});
+  const fn=files.length>1?`${files.length} Apigee files`:files[0].name;
+  for(const a of ABSENT)if(a.p==='apigee'&&!a.need.test(t))out.push(mk({rule:a.id,sev:a.sev,cat:a.cat,title:a.t,desc:'Not found in any uploaded Apigee bundle file. Upload the full apiproxy/ folder if policies live elsewhere.',rec:a.rec,ref:a.ref,platform:'Apigee',asset:name,file:fn,line:null,evidence:'',source:'Rule'}));
+  files.forEach(f=>f.asset=name);
+}
+function exAzure(f,inv){
+  const t=f.text,au=[...new Set([...t.matchAll(/<(validate-jwt|validate-azure-ad-token|validate-client-certificate|check-header|authentication-[\w-]+)\b/g)].map(m=>m[1]))].join(', ');
+  const rl=[...new Set([...t.matchAll(/<(rate-limit(?:-by-key)?|quota(?:-by-key)?)\b/g)].map(m=>m[1]))].join(', ');
+  inv.push({platform:'Azure APIM',name:f.asset,path:'(policy scope)',methods:'ANY',backend:attr((t.match(/<set-backend-service\b[^>]*>/)||[''])[0],'base-url')||'—',version:verOf(f.name),auth:au||'subscription key only?',rate:rl||'none',file:f.name});
+}
+function exMule(f,inv){
+  const t=f.text,auto=/<api-gateway:autodiscovery\b/.test(t);
+  const be=[...t.matchAll(/<http:request-connection\b[^>]*>/g)].map(m=>(attr(m[0],'protocol')||'HTTP').toLowerCase()+'://'+attr(m[0],'host')+(attr(m[0],'port')?':'+attr(m[0],'port'):'')).concat([...t.matchAll(/<http:request\b[^>]*\burl="([^"]+)"/g)].map(m=>m[1]));
+  const au=auto?'API Manager policy (verify)':/basic-security-filter|spring-security|oauth2-provider|jwt-validation/i.test(t)?'in application':'none';
+  for(const m of t.matchAll(/<flow\s+name="([^"]+)"[^>]*>([\s\S]*?)<\/flow>/g)){
+    const [,name,body]=m;let path='',methods='ANY';
+    const li=body.match(/<http:listener\b[^>]*>/);
+    if(li){path=attr(li[0],'path');methods=attr(li[0],'allowedMethods')||'ANY'}
+    else{const k=name.match(/^(get|post|put|patch|delete|head|options):(\\[^:]*):/i);if(k){methods=k[1].toUpperCase();path=k[2].replace(/\\/g,'/').replace(/\(([^)]+)\)/g,'{$1}')}}
+    if(path)inv.push({platform:'MuleSoft',name,path,methods,backend:be.join(', ')||'—',version:verOf(path),auth:au,rate:auto?'API Manager policy (verify)':'none',file:f.name});
+  }
+}
+function exWSO2(f,inv){
+  const t=f.text,au=/AuthenticationHandler|BasicAuthHandler|oauth/i.test(t)?'handler':'none',rl=/throttl/i.test(t)?'throttle':'none';
+  for(const m of t.matchAll(/<api\b([^>]*)>([\s\S]*?)<\/api>/g)){
+    const a=m[1],body=m[2],name=attr(a,'name')||f.asset,ver=attr(a,'version');
+    const ctx=(attr(a,'context')||'').replace('{version}',ver);
+    const b=ctx+(ver&&attr(a,'version-type')==='context'&&!ctx.includes(ver)?'/'+ver:'');
+    const be=[...body.matchAll(/<(?:address|http)\b[^>]*\b(?:uri|uri-template)="([^"]+)"/g)].map(x=>x[1]).join(', ')||'—';
+    const rs=[...body.matchAll(/<resource\b([^>]*)>/g)];
+    for(const r of rs.length?rs:[[,'']])inv.push({platform:'WSO2',name,path:b+(attr(r[1],'uri-template')||attr(r[1],'url-mapping')||''),methods:attr(r[1],'methods')||'ANY',backend:be,version:ver,auth:au,rate:rl,file:f.name});
+  }
+}
+function exGeneric(f,inv){
+  const t=f.text,P=PLAT[f.platform];
+  const be=[...new Set([...t.matchAll(/(?:URLSpecifier|webServiceURL|url|endpointURI|host)="(https?:\/\/[^"]+)"/gi)].map(m=>m[1]))].join(', ')||'—';
+  for(const p of new Set([...t.matchAll(/(?:URLSpecifier|resourcePath|path)="(\/[^"]*)"/gi)].map(m=>m[1])))
+    inv.push({platform:P,name:f.asset,path:p,methods:'ANY',backend:be,version:verOf(p),auth:'not in file',rate:'not in file',file:f.name});
+}
+
+/* ---------- certificates ---------- */
+function certScan(f,out){
+  for(const m of f.text.matchAll(/-----BEGIN CERTIFICATE-----([\s\S]*?)-----END CERTIFICATE-----/g)){
+    let b;try{b=Uint8Array.from(atob(m[1].replace(/\s+/g,'')),c=>c.charCodeAt(0))}catch(e){continue}
+    const times=[];
+    for(let i=0;i<b.length-2&&times.length<2;i++){
+      const L=b[i+1];
+      if((b[i]===0x17&&L===13)||(b[i]===0x18&&L===15)){const s=String.fromCharCode(...b.slice(i+2,i+2+L));if(/^\d{12}(\d\d)?Z$/.test(s)){times.push(s);i+=1+L}}
+    }
+    if(times.length<2)continue;
+    const td=s=>{let y,r;if(s.length===13){y=+s.slice(0,2);y+=y<50?2000:1900;r=s.slice(2)}else{y=+s.slice(0,4);r=s.slice(4)}return new Date(Date.UTC(y,+r.slice(0,2)-1,+r.slice(2,4),+r.slice(4,6),+r.slice(6,8)))};
+    const na=td(times[1]),days=Math.floor((na-Date.now())/864e5);
+    const hex=Array.from(b,x=>x.toString(16).padStart(2,'0')).join('');
+    let cn='';const cnI=hex.lastIndexOf('0603550403');if(cnI>=0){const j=cnI/2+5,len=b[j+1];cn=String.fromCharCode(...b.slice(j+2,j+2+len))}
+    const weak=/2a864886f70d010105|2a864886f70d010104|2a8648ce3d0401(?!0)/.test(hex);
+    const asset=cn||f.name,ln=lineAt(f,m.index),exp=na.toISOString().slice(0,10);
+    S.certs.push({cn:asset,days,exp,file:f.name});
+    const sev=days<0?'Critical':days<30?'High':days<90?'Medium':null;
+    if(sev)out.push(mk({rule:'CERT-EXP',sev,cat:'Certificates',title:days<0?`Certificate expired ${-days} days ago`:`Certificate expires in ${days} days`,desc:`${asset} — notAfter ${exp}.`,rec:'Renew and deploy the certificate to every gateway node, ESB keystore and truststore that uses it; add expiry alerting at 60/30/7 days.',ref:'CWE-298',platform:'Certificate',asset,file:f.name,line:ln,evidence:'notAfter '+exp,source:'Rule'}));
+    if(weak)out.push(mk({rule:'CERT-SIG',sev:'Medium',cat:'Certificates',title:'Certificate signed with SHA-1 or MD5',desc:`${asset} uses a deprecated signature algorithm.`,rec:'Reissue with SHA-256 or stronger.',ref:'CWE-328',platform:'Certificate',asset,file:f.name,line:ln,evidence:'signature algorithm SHA-1/MD5',source:'Rule'}));
+  }
+}
+
+/* ---------- health CSV ---------- */
+function parseCSV(t){const rows=[];let r=[],c='',q=false;for(let i=0;i<t.length;i++){const ch=t[i];if(q){if(ch==='"'){if(t[i+1]==='"'){c+='"';i++}else q=false}else c+=ch}else if(ch==='"')q=true;else if(ch===','){r.push(c);c=''}else if(ch==='\n'||ch==='\r'){if(ch==='\r'&&t[i+1]==='\n')i++;r.push(c);rows.push(r);r=[];c=''}else c+=ch}if(c||r.length){r.push(c);rows.push(r)}return rows.filter(x=>x.some(v=>v.trim()))}
+const pct=(a,p)=>{if(!a.length)return null;const s=[...a].sort((x,y)=>x-y);return Math.round(s[Math.min(s.length-1,Math.ceil(p/100*s.length)-1)])};
+function healthScan(f,out){
+  const rows=parseCSV(f.text);if(rows.length<2)return;
+  const h=rows[0].map(x=>x.trim().toLowerCase());
+  const col=a=>h.findIndex(x=>a.includes(x));
+  const ci={api:col(['endpoint','api','apiproxy','api_name','url','service','name','operation','proxy']),st:col(['status','status_code','response_status_code','code','http_status']),lat:col(['latency_ms','latency','total_response_time','response_time','duration_ms','duration','elapsed_ms','time_ms']),tls:col(['tls_days_left','cert_days_left','days_to_expiry']),un:col(['unauth_2xx']),co:col(['cors_reflect']),hs:col(['hsts']),sv:col(['server_header','server']),er:col(['error'])};
+  if(ci.api<0){f.note='no endpoint/api column found';return}
+  const g={};
+  for(const r of rows.slice(1)){const k=(r[ci.api]||'').trim();if(!k)continue;(g[k]=g[k]||[]).push(r)}
+  for(const [api,rs] of Object.entries(g)){
+    const v=(r,i)=>i>=0?(r[i]||'').trim():'';
+    const st=rs.map(r=>parseInt(v(r,ci.st),10));
+    const fail=rs.filter((r,i)=>v(r,ci.er)||!(st[i]>0)||st[i]>=500).length;
+    const x5=st.filter(s=>s>=500).length;
+    const lat=rs.map(r=>parseFloat(v(r,ci.lat))).filter(x=>!isNaN(x));
+    const tlsA=rs.map(r=>parseInt(v(r,ci.tls),10)).filter(x=>!isNaN(x));
+    const tls=tlsA.length?Math.min(...tlsA):null;
+    const yes=i=>i>=0&&rs.some(r=>/^(yes|true|1)$/i.test(v(r,i)));
+    const srv=rs.map(r=>v(r,ci.sv)).find(Boolean)||'';
+    const hsts=ci.hs>=0&&/^https/i.test(api)&&rs.some(r=>/^(no|false|0)$/i.test(v(r,ci.hs)));
+    const rec={api,n:rs.length,avail:+((rs.length-fail)/rs.length*100).toFixed(1),p50:pct(lat,50),p95:pct(lat,95),x5,tls,flags:[]};
+    const add=(rule,sev,cat,title,rc,ref,ev)=>{rec.flags.push(title);out.push(mk({rule,sev,cat,title,desc:`Observed by probe/monitoring data for ${api}.`,rec:rc,ref,platform:'Live probe',asset:api,file:f.name,line:null,evidence:ev,source:'Probe'}))};
+    if(rec.avail<99)add('H-AVAIL',rec.avail<95?'High':'Medium','Availability',`Availability ${rec.avail}% over ${rs.length} requests`,'Check backend health, connection pools and gateway upstream health checks.','SLO',`${fail} failed of ${rs.length}`);
+    if(rec.p95!=null&&rec.p95>2000)add('H-LAT','Medium','Performance',`p95 latency ${rec.p95} ms`,'Profile the slow hop (gateway policy, ESB transform, backend); add caching or async where possible.','SLO',`p50 ${rec.p50} ms · p95 ${rec.p95} ms`);
+    if(x5/rs.length>0.05)add('H-5XX','High','Availability',`${Math.round(x5/rs.length*100)}% server errors (5xx)`,'Investigate backend errors and add circuit breaking so failures do not cascade.','SLO',`${x5} × 5xx`);
+    if(tls!=null&&tls<90)add('H-TLS',tls<0?'Critical':tls<30?'High':'Medium','Certificates',tls<0?'Served certificate has expired':`Served certificate expires in ${tls} days`,'Renew the certificate on the gateway listener.','CWE-298',`tls_days_left ${tls}`);
+    if(yes(ci.un))add('H-UNAUTH','High','Authentication','Endpoint answers 2xx with no credentials','Confirm the endpoint is meant to be public; otherwise enforce auth at the gateway.','OWASP API2:2023','GET without credentials returned 2xx');
+    if(yes(ci.co))add('H-CORS','High','CORS','CORS reflects an arbitrary Origin','Validate Origin against an allow-list instead of echoing it.','CWE-942','Origin: https://probe-origin.invalid was allowed');
+    if(hsts)add('H-HSTS','Low','Transport security','No Strict-Transport-Security header','Send HSTS (max-age ≥ 15552000) from the gateway.','OWASP API8:2023','HSTS missing');
+    if(/\d/.test(srv))add('H-SRV','Low','Information disclosure','Server version disclosed in headers','Strip or genericise the Server / X-Powered-By headers at the gateway.','CWE-200','Server: '+srv);
+    S.health.push(rec);
+  }
+}
+
+/* ---------- inventory cross-checks ---------- */
+function invChecks(out){
+  const norm=p=>String(p).toLowerCase().replace(/^https?:\/\/[^/]+/,'').replace(/\/v\d+(\.\d+)*(?=\/|$)/,'').replace(/\{[^}]+\}|:\w+|\*/g,'{}').replace(/\/+$/,'');
+  const g={};
+  for(const r of S.inv){const v=(String(r.path).match(/\/v(\d+)(?=\/|$)/i)||[])[1];if(!v)continue;const k=r.platform+'|'+norm(r.path);(g[k]=g[k]||[]).push({r,v:+v})}
+  const seen=new Set();
+  for(const arr of Object.values(g)){const max=Math.max(...arr.map(x=>x.v));for(const x of arr)if(x.v<max){x.r.flag=`older than v${max}`;const k=x.r.platform+x.r.path;if(seen.has(k))continue;seen.add(k);
+    out.push(mk({rule:'INV-VER',sev:'Medium',cat:'Inventory / governance',title:`Older version v${x.v} still exposed next to v${max}`,desc:`${x.r.name} ${x.r.path} — older versions often miss fixes applied to the new one.`,rec:'Set a sunset date, notify consumers, add Deprecation/Sunset headers, then retire the route.',ref:'OWASP API9:2023',platform:x.r.platform,asset:x.r.name+' '+x.r.path,file:x.r.file,line:null,evidence:x.r.path,source:'Rule'}))}}
+  const bp={};for(const r of S.inv){const k=String(r.path).replace(/^https?:\/\/[^/]+/,'').toLowerCase();if(!k.startsWith('/'))continue;(bp[k]=bp[k]||new Set()).add(r.platform)}
+  for(const [k,s] of Object.entries(bp))if(s.size>1)out.push(mk({rule:'INV-DUP',sev:'Info',cat:'Inventory / governance',title:'Same path exposed on more than one platform',desc:`${k} appears on ${[...s].join(', ')}.`,rec:'Confirm which one is the system of record; retire or document the duplicate (possible shadow API).',ref:'OWASP API9:2023',platform:[...s].join(' + '),asset:k,file:'(inventory)',line:null,evidence:'',source:'Rule'}));
+  const ips=new Set();for(const r of S.inv){const m=String(r.backend).match(/\/\/(\d+\.\d+\.\d+\.\d+)(:\d+)?/);if(m&&!ips.has(m[0])){ips.add(m[0]);out.push(mk({rule:'INV-IP',sev:'Low',cat:'Inventory / governance',title:'Backend addressed by raw IP',desc:`${r.name} routes to ${m[1]}${m[2]||''} directly.`,rec:'Use a DNS name or service registry so backends can move without config edits.',ref:'OWASP API9:2023',platform:r.platform,asset:r.name,file:r.file,line:null,evidence:r.backend,source:'Rule'}))}}
+}
+
+/* ---------- scan ---------- */
+function scan(){
+  const out=[];S.inv=[];S.health=[];S.certs=[];
+  for(const f of S.files){f.nl=f.nl||nlIndex(f.text);f.asset=base(f.name);f.note=''}
+  for(const f of S.files){
+    if(f.platform==='kong')exKong(f,out,S.inv);
+    else if(['oas','apic','aws'].includes(f.platform))exOAS(f,out,S.inv);
+    else if(f.platform==='azure')exAzure(f,S.inv);
+    else if(f.platform==='mule')exMule(f,S.inv);
+    else if(f.platform==='wso2')exWSO2(f,S.inv);
+    else if(f.platform==='ace'||f.platform==='tibco')exGeneric(f,S.inv);
+  }
+  exApigee(S.files.filter(f=>f.platform==='apigee'),out,S.inv);
+  for(const f of S.files){
+    if(f.platform==='cert')certScan(f,out);
+    else if(f.platform==='mon')healthScan(f,out);
+    else applyRules(f,out);
+    (f.aiF||[]).forEach((a,i)=>out.push(mk({rule:'AI-'+i,sev:SEV.includes(a.severity)?a.severity:'Medium',cat:String(a.category||'AI review').slice(0,60),title:String(a.title||'AI finding').slice(0,160),desc:String(a.description||''),rec:String(a.recommendation||''),ref:String(a.reference||''),platform:PLAT[f.platform],asset:f.asset,file:f.name,line:Number.isFinite(+a.line)&&+a.line>0?+a.line:null,evidence:mask(String(a.evidence||'')).slice(0,300),source:'AI'})));
+  }
+  invChecks(out);
+  const seen=new Set();
+  S.findings=out.filter(x=>!seen.has(x.fp)&&seen.add(x.fp)).sort((a,b)=>SEV.indexOf(a.sev)-SEV.indexOf(b.sev)||a.platform.localeCompare(b.platform)||a.title.localeCompare(b.title));
+  for(const f of S.files)f.count=S.findings.filter(x=>x.file===f.name).length;
+  render();
+}
+
+/* ---------- render ---------- */
+function opts(sel,vals,first){const cur=sel.value;sel.innerHTML=`<option value="">${first}</option>`+vals.map(v=>`<option${v===cur?' selected':''}>${esc(v)}</option>`).join('')}
+function render(){
+  const open=S.findings.filter(x=>!done(x.status));
+  $('#totOpen').textContent=open.length;
+  $('#totLbl').textContent=`open finding${open.length===1?'':'s'} · ${S.inv.length} API operations · ${S.files.length} file${S.files.length===1?'':'s'}`;
+  const max=Math.max(1,...SEV.map(s=>open.filter(x=>x.sev===s).length));
+  $('#sevbars').innerHTML=SEV.map(s=>{const n=open.filter(x=>x.sev===s).length;return `<div class="sev" style="--c:${SEVC[s]}"><span>${s}</span><i style="width:${n/max*100}%"></i><em>${n}</em></div>`}).join('');
+  $('#files').innerHTML=S.files.map(f=>`<li><b>${esc(f.name)}</b><button class="ghost" data-ai="${f.id}" ${f.ai==='run'||f.platform==='mon'||f.platform==='cert'?'disabled':''}>${f.ai==='run'?'Reviewing…':f.ai==='ok'?'AI ✓ '+(f.aiF||[]).length:f.ai==='err'?'AI retry':'AI review'}</button><button class="ghost" data-rm="${f.id}" aria-label="Remove ${esc(f.name)}">×</button><small><select data-plat="${f.id}" aria-label="Platform for ${esc(f.name)}">${Object.entries(PLAT).map(([k,v])=>`<option value="${k}"${k===f.platform?' selected':''}>${v}</option>`).join('')}</select>${(f.text.length/1024).toFixed(1)} KB · ${f.count||0} findings${f.note?' · '+esc(f.note):''}</small></li>`).join('');
+  $('#cF').textContent=open.length||'';$('#cI').textContent=S.inv.length||'';$('#cH').textContent=S.health.length||'';
+  opts($('#fSev'),SEV,'All severities');
+  opts($('#fPlat'),[...new Set(S.findings.map(x=>x.platform))].sort(),'All platforms');
+  opts($('#fCat'),[...new Set(S.findings.map(x=>x.cat))].sort(),'All categories');
+  opts($('#fStat'),STATUSES,'All statuses');
+  renderFindings();renderInv();renderHealth();
+}
+function renderFindings(){
+  const sv=$('#fSev').value,pl=$('#fPlat').value,ca=$('#fCat').value,st=$('#fStat').value,sr=$('#fSrc').value,q=$('#fQ').value.trim().toLowerCase();
+  const rows=S.findings.filter(x=>(!sv||x.sev===sv)&&(!pl||x.platform===pl)&&(!ca||x.cat===ca)&&(!st||x.status===st)&&(!sr||x.source===sr)&&(!q||(x.title+' '+x.asset+' '+x.file+' '+x.desc).toLowerCase().includes(q)));
+  $('#fTab tbody').innerHTML=rows.slice(0,800).map(x=>`<tr><td><span class="pill" style="--c:${SEVC[x.sev]}">${x.sev}</span></td><td><div class="ft">${esc(x.title)} <span class="src">${x.source==='Rule'?esc(x.rule):x.source}</span></div>${x.desc?`<div class="fd">${esc(x.desc)}</div>`:''}<details><summary>Evidence and fix</summary>${x.evidence?`<p><code>${esc(x.evidence)}</code></p>`:''}<p>${esc(x.rec)}</p></details></td><td>${esc(x.platform)}<div class="fd">${esc(x.asset)}</div><div class="fd">${esc(x.file)}${x.line?':'+x.line:''}</div></td><td class="small">${esc(x.cat)}<br>${esc(x.ref)}</td><td><select data-fp="${esc(x.fp)}" aria-label="Status">${STATUSES.map(s=>`<option${s===x.status?' selected':''}>${s}</option>`).join('')}</select></td></tr>`).join('');
+  $('#fEmpty').hidden=rows.length>0;
+}
+function renderInv(){
+  const c=v=>/^(none|subscription key only\?)$/.test(v)?`<span class="bad">${esc(v)}</span>`:esc(v);
+  $('#iTab tbody').innerHTML=S.inv.map(r=>`<tr><td>${esc(r.platform)}</td><td>${esc(r.name)}${r.flag?`<div class="fd bad">${esc(r.flag)}</div>`:''}</td><td><code>${esc(r.path)}</code></td><td>${esc(r.methods)}</td><td class="small" style="overflow-wrap:anywhere">${esc(r.backend)}</td><td>${c(r.auth)}</td><td>${c(r.rate)}</td><td class="small">${esc(r.file)}</td></tr>`).join('');
+  $('#iEmpty').hidden=S.inv.length>0;
+}
+function renderHealth(){
+  $('#hTab tbody').innerHTML=S.health.map(h=>`<tr><td style="overflow-wrap:anywhere">${esc(h.api)}</td><td class="num">${h.n}</td><td class="num ${h.avail<99?'bad':''}">${h.avail}%</td><td class="num">${h.p50??'—'}</td><td class="num ${h.p95>2000?'bad':''}">${h.p95??'—'}</td><td class="num">${h.x5}</td><td class="num ${h.tls!=null&&h.tls<30?'bad':''}">${h.tls??'—'}</td><td class="small">${esc(h.flags.join(' · ')||'—')}</td></tr>`).join('')
+   +(S.certs||[]).map(c=>`<tr><td>Certificate file: ${esc(c.cn)}</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num ${c.days<30?'bad':''}">${c.days}</td><td class="small">expires ${esc(c.exp)} · ${esc(c.file)}</td></tr>`).join('');
+  $('#hEmpty').hidden=S.health.length+(S.certs||[]).length>0;
+}
+
+/* ---------- file intake ---------- */
+async function addFiles(list){
+  for(const file of list){
+    const n=file.name.toLowerCase();
+    if(/\.(xlsx|xlsm|xls)$/.test(n)){await importWB(file);tab('export');continue}
+    const buf=new Uint8Array(await file.arrayBuffer());
+    let text=new TextDecoder().decode(buf);
+    if(/\.(cer|der|crt)$/.test(n)&&!/BEGIN CERTIFICATE/.test(text)){let s='';buf.forEach(b=>s+=String.fromCharCode(b));text='-----BEGIN CERTIFICATE-----\n'+btoa(s)+'\n-----END CERTIFICATE-----'}
+    addText(file.name,text);
+  }
+  scan();
+}
+function addText(name,text){
+  if(S.sample){S.files=[];S.sample=false;$('#sampleNote').hidden=true}
+  S.files=S.files.filter(f=>f.name!==name);
+  S.files.push({id:S.fid++,name,text,platform:detect(name,text),aiF:[]});
+}
+const drop=$('#drop');
+['dragenter','dragover'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.add('over')}));
+['dragleave','drop'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.remove('over')}));
+drop.addEventListener('drop',ev=>addFiles([...ev.dataTransfer.files]));
+$('#pick').onclick=e=>{e.stopPropagation();$('#fileIn').click()};
+drop.addEventListener('keydown',e=>{if(e.target===drop&&(e.key==='Enter'||e.key===' ')){e.preventDefault();$('#fileIn').click()}});
+$('#fileIn').onchange=e=>{addFiles([...e.target.files]);e.target.value=''};
+$('#pasteBtn').onclick=()=>{$('#pasteBox').hidden=false;$('#pasteName').focus()};
+$('#pasteCancel').onclick=()=>{$('#pasteBox').hidden=true};
+$('#pasteAdd').onclick=()=>{const t=$('#pasteText').value;if(!t.trim())return;addText($('#pasteName').value.trim()||'pasted-'+S.fid+'.txt',t);$('#pasteText').value='';$('#pasteName').value='';$('#pasteBox').hidden=true;scan()};
+$('#sampleBtn').onclick=()=>loadSample();
+$('#clearBtn').onclick=()=>{S.files=[];S.sample=false;$('#sampleNote').hidden=true;scan()};
+$('#files').addEventListener('click',e=>{const rm=e.target.closest('[data-rm]'),ai=e.target.closest('[data-ai]');
+  if(rm){S.files=S.files.filter(f=>f.id!=rm.dataset.rm);scan()}
+  if(ai){const f=S.files.find(f=>f.id==ai.dataset.ai);if(f)aiReview(f).then(scan)}});
+$('#files').addEventListener('change',e=>{const s=e.target.closest('[data-plat]');if(s){const f=S.files.find(f=>f.id==s.dataset.plat);f.platform=s.value;scan()}});
+['#fSev','#fPlat','#fCat','#fStat','#fSrc'].forEach(s=>$(s).addEventListener('change',renderFindings));
+$('#fQ').addEventListener('input',renderFindings);
+$('#fTab').addEventListener('change',e=>{const s=e.target.closest('[data-fp]');if(!s)return;S.status[s.dataset.fp]=s.value;LS.set('status',S.status);const x=S.findings.find(x=>x.fp===s.dataset.fp);if(x)x.status=s.value;render()});
+function tab(n){document.querySelectorAll('[role=tab]').forEach(b=>b.setAttribute('aria-selected',b.dataset.tab===n));document.querySelectorAll('main>section').forEach(s=>s.hidden=s.id!=='t-'+n)}
+document.querySelector('.tabs').addEventListener('click',e=>{const b=e.target.closest('[data-tab]');if(b)tab(b.dataset.tab)});
+
+/* ---------- probe script ---------- */
+$('#pGen').onclick=()=>{
+  const b=$('#pBase').value.trim().replace(/\/$/,''),rounds=Math.max(1,Math.min(50,+$('#pRounds').value||5));
+  const eps=[...new Set(S.inv.map(r=>String(r.path)).filter(p=>p.startsWith('/')||/^https?:\/\//.test(p)).map(p=>(/^https?:/.test(p)?p:(b||'https://CHANGE-ME.example.com')+p).replace(/\{[^}]+\}|:\w+(?=\/|$)|\*/g,'test')))];
+  const py=`#!/usr/bin/env python3
+"""ESB / API gateway probe. Read-only: GET requests and one CORS check per endpoint.
+Sends no credentials and no attack payloads. Writes probe_results.csv for the scanner."""
+import csv, datetime, socket, ssl, time, urllib.error, urllib.request
+from urllib.parse import urlparse
+
+ENDPOINTS = ${JSON.stringify(eps,null,4)}
+ROUNDS = ${rounds}
+TIMEOUT = 10
+TEST_ORIGIN = "https://probe-origin.invalid"
+OUT = "probe_results.csv"
+
+def tls_days(url):
+    u = urlparse(url)
+    if u.scheme != "https":
+        return ""
+    try:
+        ctx = ssl.create_default_context()
+        with socket.create_connection((u.hostname, u.port or 443), timeout=TIMEOUT) as s:
+            with ctx.wrap_socket(s, server_hostname=u.hostname) as t:
+                exp = t.getpeercert()["notAfter"]
+        end = datetime.datetime.strptime(exp, "%b %d %H:%M:%S %Y %Z")
+        return (end - datetime.datetime.utcnow()).days
+    except Exception:
+        return ""
+
+def call(url, origin=None):
+    headers = {"User-Agent": "esb-gw-probe/1.0"}
+    if origin:
+        headers["Origin"] = origin
+    req = urllib.request.Request(url, headers=headers, method="GET")
+    t0 = time.perf_counter()
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+            r.read(65536)
+            return r.status, (time.perf_counter() - t0) * 1000, r.headers, ""
+    except urllib.error.HTTPError as e:
+        return e.code, (time.perf_counter() - t0) * 1000, e.headers, ""
+    except Exception as e:
+        return "", (time.perf_counter() - t0) * 1000, {}, str(e)[:150]
+
+with open(OUT, "w", newline="") as fh:
+    w = csv.writer(fh)
+    w.writerow(["endpoint", "round", "timestamp", "status", "latency_ms", "error",
+                "tls_days_left", "hsts", "server_header", "unauth_2xx", "cors_reflect"])
+    for url in ENDPOINTS:
+        days = tls_days(url)
+        for n in range(1, ROUNDS + 1):
+            status, ms, hdr, err = call(url)
+            row = [url, n, datetime.datetime.utcnow().isoformat(timespec="seconds"), status, round(ms), err, "", "", "", "", ""]
+            if n == 1:
+                cs, _, ch, _ = call(url, TEST_ORIGIN)
+                acao = (ch.get("Access-Control-Allow-Origin") or "") if ch else ""
+                row[6] = days
+                row[7] = "yes" if hdr and hdr.get("Strict-Transport-Security") else "no"
+                row[8] = (hdr.get("Server") or hdr.get("X-Powered-By") or "") if hdr else ""
+                row[9] = "yes" if isinstance(status, int) and 200 <= status < 300 else "no"
+                row[10] = "yes" if acao in (TEST_ORIGIN, "*") else "no"
+            w.writerow(row)
+            time.sleep(0.2)
+        print("probed", url)
+print("wrote", OUT)
+`;
+  $('#pOut').textContent=py;$('#pOut').hidden=false;$('#pCopy').disabled=false;
+};
+$('#pCopy').onclick=async()=>{try{await navigator.clipboard.writeText($('#pOut').textContent);$('#pCopy').textContent='Copied'}catch(e){$('#pCopy').textContent='Select the text to copy'}setTimeout(()=>$('#pCopy').textContent='Copy script',2000)};
+
+/* ---------- AI ---------- */
+let stopAll=false;
+async function askJSON(sample,prompt){
+  const r=await sample(prompt,{modelTier:'default'});const t=r.text||'';
+  const a=t.indexOf('['),b=t.lastIndexOf(']');if(a<0||b<a)return [];
+  const v=JSON.parse(t.slice(a,b+1));return Array.isArray(v)?v:[];
+}
+async function aiReview(f){
+  const sample=await claude.use('sample');if(!sample)return;
+  if(f.platform==='mon'||f.platform==='cert')return;
+  f.ai='run';render();
+  const ex=S.findings.filter(x=>x.file===f.name&&x.source==='Rule').map(x=>x.title);
+  const prompt=`You are a senior API security and integration architect reviewing a ${PLAT[f.platform]} artifact from a PRODUCTION ESB / API gateway estate.
+File name: ${f.name}
+A rule engine already reported: ${[...new Set(ex)].join('; ')||'nothing'}.
+Find ADDITIONAL concrete problems in: security (OWASP API Security Top 10 2023: BOLA, broken auth, property-level authorization, resource consumption, function-level authorization, SSRF, misconfiguration, inventory), configuration and policy gaps, inventory/governance (undocumented, deprecated or shadow endpoints), and resilience/performance (missing timeouts, retries without limits, no circuit breaker, unbounded payloads, synchronous fan-out).
+Report only issues supported by the text. Do not repeat the rule-engine items. Secrets are masked as ***REDACTED***.
+Return ONLY a JSON array (at most 8 items, [] if nothing) of objects:
+{"severity":"Critical|High|Medium|Low|Info","category":"short","title":"short","description":"1-2 sentences","evidence":"short excerpt from the file","line":number or null,"recommendation":"specific fix for ${PLAT[f.platform]}","reference":"OWASP API ref and/or CWE"}
+--- FILE START ---
+${redact(f.text).slice(0,16000)}
+--- FILE END ---`;
+  try{f.aiF=await askJSON(sample,prompt);f.ai='ok';return true}
+  catch(e){f.ai='err';$('#aiMsg').textContent=e&&e.code==='rate_limited'?'Claude is rate-limiting requests; wait a minute and retry.':e&&e.code==='not_granted'?'AI review was not allowed for this page.':'AI review failed for '+f.name+'.';if(e&&(e.code==='rate_limited'||e.code==='not_granted'))stopAll=true;return false}
+}
+$('#aiAll').onclick=async()=>{
+  stopAll=false;$('#aiAll').disabled=true;$('#aiStop').disabled=false;
+  const todo=S.files.filter(f=>f.platform!=='mon'&&f.platform!=='cert'&&f.ai!=='ok');
+  for(const [i,f] of todo.entries()){if(stopAll)break;$('#aiMsg').textContent=`Reviewing ${i+1} of ${todo.length}: ${f.name}`;await aiReview(f);scan()}
+  if(!stopAll)$('#aiMsg').textContent=`Done. ${S.findings.filter(x=>x.source==='AI').length} AI findings added to the Findings tab.`;
+  $('#aiAll').disabled=false;$('#aiStop').disabled=true;
+};
+$('#aiStop').onclick=()=>{stopAll=true;$('#aiMsg').textContent='Stopping after the current file.'};
+function ctx(){
+  const o=S.findings.filter(x=>!done(x.status));
+  return `Open findings by severity: ${SEV.map(s=>s+' '+o.filter(x=>x.sev===s).length).join(', ')}.
+By platform: ${[...new Set(o.map(x=>x.platform))].map(p=>p+' '+o.filter(x=>x.platform===p).length).join(', ')}.
+Inventory: ${S.inv.length} operations; ${S.inv.filter(r=>r.auth==='none').length} without auth; ${S.inv.filter(r=>r.rate==='none').length} without rate limiting.
+Top findings:
+${o.slice(0,35).map(x=>`- [${x.sev}] ${x.title} — ${x.platform} — ${x.asset} (${x.ref})`).join('\n')}
+Endpoint health:
+${S.health.slice(0,15).map(h=>`- ${h.api}: availability ${h.avail}%, p95 ${h.p95} ms, TLS days ${h.tls??'n/a'}, flags: ${h.flags.join('; ')||'none'}`).join('\n')||'- no probe data'}`;
+}
+function md(el,t){el.textContent='';let ul=null;for(const raw of t.split('\n')){const l=raw.trim();if(!l){ul=null;continue}
+  if(/^#{1,4}\s/.test(l)){ul=null;const h=document.createElement('h3');h.textContent=l.replace(/^#+\s*/,'');el.appendChild(h)}
+  else if(/^([-*•]|\d+\.)\s/.test(l)){if(!ul){ul=document.createElement('ul');el.appendChild(ul)}const li=document.createElement('li');li.textContent=l.replace(/^([-*•]|\d+\.)\s*/,'').replace(/\*\*/g,'');ul.appendChild(li)}
+  else{ul=null;const p=document.createElement('p');p.textContent=l.replace(/\*\*/g,'');el.appendChild(p)}}}
+async function stream(btn,out,prompt){
+  const sample=await claude.use('sample');if(!sample)return;
+  btn.disabled=true;out.textContent='Thinking…';
+  try{const r=await sample(prompt,{modelTier:'default',onText:({text})=>md(out,text)});md(out,r.text)}
+  catch(e){out.textContent=e&&e.code==='rate_limited'?'Rate-limited; try again in a minute.':'Could not get an answer.'}
+  btn.disabled=false;
+}
+$('#sumBtn').onclick=()=>stream($('#sumBtn'),$('#sumOut'),`You are writing for the owner of a PROD ESB and API gateway estate (IBM ACE/IIB, API Connect, MuleSoft, WSO2, TIBCO, Kong, Apigee, Azure APIM, AWS API Gateway). Using only the scan results below, write:
+## Posture
+3 sentences.
+## Top 5 priorities
+Each: what, why it matters, owner type, effort (S/M/L).
+## Quick wins this week
+3-5 bullets.
+## Platform notes
+One line per platform present.
+Plain text with ## headings and - bullets. No tables.
+${ctx()}`);
+$('#askF').onsubmit=e=>{e.preventDefault();const q=$('#askQ').value.trim();if(!q)return;stream($('#askF button'),$('#askOut'),`Answer the question about this ESB / API gateway scan concisely and specifically, using only these results. Plain text, - bullets allowed.
+Question: ${q}
+${ctx()}`)};
+
+/* ---------- export ---------- */
+const FIELDS=[['sno','S.No'],['id','Finding ID'],['app','Application / API'],['env','Environment'],['platform','Platform'],['cat','Category'],['title','Vulnerability / finding'],['desc','Description'],['sev','Severity'],['cvss','CVSS (approx.)'],['ref','OWASP / CWE'],['asset','Affected asset / endpoint'],['loc','File and line'],['evidence','Evidence'],['rec','Recommendation'],['status','Status'],['owner','Owner'],['found','Identified date'],['target','Target date'],['source','Detected by'],['remarks','Remarks'],['blank','(leave blank)']];
+const SYN=[['sno',/^(s\.?\s*no|sr\.?\s*no|sl\.?\s*no|serial|#)/i],['id',/(finding|vuln\w*|issue|observation|ticket|ref\w*)\s*(id|no\.?|#|number)\b|^id$/i],['found',/(identified|found|reported|detected|raised|open(ed)?|discovery|logged)\s*(date|on)|^date$/i],['target',/(target|due|closure|closing|eta|sla|remediation)\s*date|^target|^due/i],['cvss',/cvss|score/i],['sev',/severity|risk\s*(rating|level)?|rating|priority|criticality/i],['status',/status|state/i],['owner',/owner|assign|responsible|spoc|team|poc/i],['ref',/owasp|cwe|cve|reference|standard|control/i],['evidence',/evidence|proof|poc|screenshot/i],['rec',/recommend|remediation|fix|mitigation|solution|action/i],['desc',/desc|detail|impact/i],['env',/env/i],['platform',/platform|technology|component|layer|middleware|tool/i],['cat',/category|type|class/i],['asset',/asset|endpoint|url|host|\bip\b|affected|uri/i],['loc',/file|location|path|line/i],['source',/source|detected\s*by|scanner|identified\s*by/i],['remarks',/remark|comment|note/i],['app',/application|\bapp\b|api\s*name|system|service|project/i],['title',/vulnerab|finding|issue|observation|title|name/i]];
+const guess=h=>{for(const [k,re] of SYN)if(re.test(h))return k;return 'blank'};
+const DEF=FIELDS.filter(f=>f[0]!=='blank').map(([field,header])=>({header,field}));
+S.cols=LS.get('cols',DEF);
+function renderCols(){$('#colBody').innerHTML=S.cols.map((c,i)=>`<tr><td><input data-h="${i}" value="${esc(c.header)}" aria-label="Header ${i+1}"></td><td><select data-c="${i}" aria-label="Field for column ${i+1}">${FIELDS.map(([k,l])=>`<option value="${k}"${k===c.field?' selected':''}>${l}</option>`).join('')}</select></td><td><button class="ghost" data-x="${i}" aria-label="Remove column" style="min-height:36px;padding:2px 10px">×</button></td></tr>`).join('')}
+const saveCols=()=>LS.set('cols',S.cols);
+$('#colBody').addEventListener('input',e=>{const h=e.target.dataset.h;if(h!=null){S.cols[h].header=e.target.value;saveCols()}});
+$('#colBody').addEventListener('change',e=>{const c=e.target.dataset.c;if(c!=null){S.cols[c].field=e.target.value;saveCols()}});
+$('#colBody').addEventListener('click',e=>{const x=e.target.closest('[data-x]');if(x){S.cols.splice(+x.dataset.x,1);saveCols();renderCols()}});
+$('#colAdd').onclick=()=>{S.cols.push({header:'New column',field:'blank'});saveCols();renderCols()};
+$('#colReset').onclick=()=>{S.cols=DEF.map(x=>({...x}));S.sheet='';LS.set('sheet','');saveCols();renderCols();$('#wbMsg').textContent='Default columns restored.'};
+$('#wbIn').onchange=e=>{const f=e.target.files[0];if(f)importWB(f);e.target.value=''};
+async function importWB(file){
+  try{
+    const wb=XLSX.read(new Uint8Array(await file.arrayBuffer()),{type:'array'});let best=null;
+    for(const sn of wb.SheetNames){const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,blankrows:false,defval:''}).slice(0,15);
+      for(const r of rows){const hs=r.map(x=>String(x).trim());const sc=hs.filter(h=>h&&h.length<60&&guess(h)!=='blank').length;if(!best||sc>best.sc)best={sc,sn,hs}}}
+    if(!best||best.sc<3){$('#wbMsg').textContent='No header row found in that workbook; columns unchanged.';return}
+    let last=best.hs.length;while(last>0&&!best.hs[last-1])last--;
+    S.cols=best.hs.slice(0,last).map(h=>({header:h,field:h?guess(h):'blank'}));S.sheet=best.sn.slice(0,31);LS.set('sheet',S.sheet);saveCols();renderCols();
+    $('#wbMsg').textContent=`Copied ${S.cols.length} columns from sheet “${best.sn}” in ${file.name}. Check the mappings.`;
+  }catch(err){$('#wbMsg').textContent='Could not read that workbook.'}
+}
+const iso=d=>d.toISOString().slice(0,10);
+function rowsOut(){
+  const env=$('#xEnv').value.trim(),pre=$('#xPre').value.trim()||'ESBGW',own=$('#xOwner').value.trim();
+  const sla={Critical:+$('#sC').value||7,High:+$('#sH').value||30,Medium:+$('#sM').value||60,Low:+$('#sL').value||90,Info:+$('#sL').value||90};
+  const today=new Date(),d=iso(today).replace(/-/g,'');
+  const list=S.findings.filter(x=>!($('#xFP').checked&&x.status==='False positive'));
+  return list.map((x,i)=>{const v={sno:i+1,id:`${pre}-${d}-${String(i+1).padStart(4,'0')}`,app:x.asset,env,platform:x.platform,cat:x.cat,title:x.title,desc:x.desc,sev:x.sev,cvss:CVSS[x.sev],ref:x.ref,asset:x.asset,loc:x.file+(x.line?':'+x.line:''),evidence:x.evidence,rec:x.rec,status:x.status,owner:own,found:iso(today),target:iso(new Date(+today+sla[x.sev]*864e5)),source:x.source==='AI'?'AI review (Claude)':x.source==='Probe'?'Live probe':'Rule '+x.rule,remarks:''};return S.cols.map(c=>c.field==='blank'?'':v[c.field]??'')});
+}
+$('#xGo').onclick=async()=>{
+  const msg=$('#xMsg');
+  const dl=await claude.use('downloads');
+  if(!dl){msg.textContent='Downloads are not available in this view; use Copy as CSV.';return}
+  const wb=XLSX.utils.book_new(),rows=rowsOut(),env=$('#xEnv').value.trim();
+  const fs=XLSX.utils.aoa_to_sheet([S.cols.map(c=>c.header),...rows]);fs['!cols']=S.cols.map(c=>({wch:['desc','rec','evidence'].includes(c.field)?60:['title','asset'].includes(c.field)?40:16}));
+  XLSX.utils.book_append_sheet(wb,fs,S.sheet||'Findings');
+  const L=S.findings.filter(x=>!($('#xFP').checked&&x.status==='False positive'));
+  const st=STATUSES.filter(s=>!($('#xFP').checked&&s==='False positive'));
+  const plats=[...new Set(L.map(x=>x.platform))].sort();
+  const dash=[['Security Status Dashboard — ESB & API Gateway'],['Environment',env],['Generated',iso(new Date())],[],['Severity',...st,'Total'],...SEV.map(s=>[s,...st.map(t=>L.filter(x=>x.sev===s&&x.status===t).length),L.filter(x=>x.sev===s).length]),['Total',...st.map(t=>L.filter(x=>x.status===t).length),L.length],[],['Platform',...SEV,'Total'],...plats.map(p=>[p,...SEV.map(s=>L.filter(x=>x.platform===p&&x.sev===s).length),L.filter(x=>x.platform===p).length])];
+  const ds=XLSX.utils.aoa_to_sheet(dash);ds['!cols']=[{wch:26},...Array(8).fill({wch:14})];
+  XLSX.utils.book_append_sheet(wb,ds,'Status Dashboard');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Platform','API / flow','Path','Methods','Backend','Version','Auth','Rate limit','Note','Source file'],...S.inv.map(r=>[r.platform,r.name,r.path,r.methods,r.backend,r.version,r.auth,r.rate,r.flag||'',r.file])]),'API Inventory');
+  XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet([['Endpoint','Requests','Availability %','p50 ms','p95 ms','5xx','TLS days left','Flags'],...S.health.map(h=>[h.api,h.n,h.avail,h.p50,h.p95,h.x5,h.tls,h.flags.join('; ')]),...(S.certs||[]).map(c=>['Certificate: '+c.cn,'','','','','',c.days,'expires '+c.exp])]),'Endpoint Health');
+  const buf=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+  const name=`ESB-Gateway-Findings-${env||'ENV'}-${iso(new Date())}.xlsx`;
+  try{await dl.save({filename:name,data:new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})});msg.textContent=`Saved ${name} (${rows.length} findings).`}
+  catch(e){msg.textContent=e&&/declin|cancel|abort/i.test((e.code||'')+(e.message||''))?'Download cancelled.':'Download failed; use Copy as CSV instead.'}
+};
+$('#xCsv').onclick=async()=>{
+  const q=v=>{const s=String(v??'');return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s};
+  const csv=[S.cols.map(c=>c.header),...rowsOut()].map(r=>r.map(q).join(',')).join('\n');
+  try{await navigator.clipboard.writeText(csv);$('#xMsg').textContent='Copied. Paste into your master list (Paste → Text Import if Excel keeps it in one column).'}catch(e){$('#xMsg').textContent='Clipboard blocked by the browser.'}
+};
+
+/* ---------- sample set (fictional) ---------- */
+const CERT=`-----BEGIN CERTIFICATE-----
+MIIBhjCCAS6gAwIBAgIURH+srkyTbWvaFpNYyxRl1V26PdowCQYHKoZIzj0EATAa
+MRgwFgYDVQQDDA9hcGkuZXhhbXBsZS5jb20wHhcNMjYxMTI1MDgyMDAwWhcNMjYx
+MjE1MDgyMDAwWjAaMRgwFgYDVQQDDA9hcGkuZXhhbXBsZS5jb20wWTATBgcqhkjO
+PQIBBggqhkjOPQMBBwNCAATSWR6HxcByCgF1nWqr60qWJCoCDWV8wxP0d13hWhvy
+a/99cnswmaU+f/LEvjf+2saut1QzWU0xvE1A+90iE0gKo1MwUTAdBgNVHQ4EFgQU
+KEBe44hUYb9DdWqioSCAoVZpMsMwHwYDVR0jBBgwFoAUKEBe44hUYb9DdWqioSCA
+oVZpMsMwDwYDVR0TAQH/BAUwAwEB/zAJBgcqhkjOPQQBA0cAMEQCIDAnBaLskwML
+zLsiNHFMgQy2cDLlFijY4m+jZPfFQrHrAiAQ/EEmAt8vftMH7EZcrTUwClucfZqk
+brQkNzmH+YFZaQ==
+-----END CERTIFICATE-----`;
+const SAMPLE={
+'mule-orders-api.xml':`<?xml version="1.0" encoding="UTF-8"?>
+<mule xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:db="http://www.mulesoft.org/schema/mule/db">
+  <http:listener-config name="orders-listener">
+    <http:listener-connection host="0.0.0.0" port="8081" protocol="HTTP"/>
+  </http:listener-config>
+  <http:request-config name="erp-request">
+    <http:request-connection host="10.20.1.15" port="8080" protocol="HTTP"/>
+  </http:request-config>
+  <db:config name="ordersDb"><db:my-sql-connection host="10.20.3.4" port="3306" user="svc_orders" password="Orders@2024" database="orders"/></db:config>
+  <flow name="get-orders">
+    <http:listener config-ref="orders-listener" path="/api/v1/orders/*" allowedMethods="GET"/>
+    <logger level="DEBUG" message="#[payload]"/>
+    <http:request config-ref="erp-request" method="GET" path="/erp/orders"/>
+    <error-handler><on-error-propagate><set-payload value="#[error.detailedDescription]"/></on-error-propagate></error-handler>
+  </flow>
+  <flow name="post:\\orders:orders-api-config">
+    <db:insert config-ref="ordersDb"><db:sql>INSERT INTO orders VALUES (:id, :total)</db:sql></db:insert>
+  </flow>
+</mule>`,
+'kong.yaml':`_format_version: "3.0"
+plugins:
+- name: cors
+  config:
+    origins: ["*"]
+services:
+- name: customers-v1
+  url: http://10.20.5.21:8080/customers
+  routes:
+  - name: customers-v1
+    paths: [/v1/customers]
+    methods: [GET, POST, TRACE]
+- name: customers-v2
+  url: https://customers.internal.example.com/v2
+  routes:
+  - name: customers-v2
+    paths: [/v2/customers]
+    methods: [GET, POST]
+  plugins:
+  - name: key-auth
+  - name: rate-limiting
+    config: {minute: 600, policy: local}
+- name: payments
+  url: https://payments.internal.example.com
+  tls_verify: false
+  routes:
+  - name: payments
+    paths: [/v1/payments]
+    methods: [POST]
+  plugins:
+  - name: jwt`,
+'apigee-sales-v1-proxy.xml':`<ProxyEndpoint name="default">
+  <PreFlow name="PreFlow"><Request><Step><Name>Verify-API-Key</Name></Step></Request></PreFlow>
+  <Flows>
+    <Flow name="getOrder"><Condition>(proxy.pathsuffix MatchesPath "/orders/*") and (request.verb = "GET")</Condition></Flow>
+    <Flow name="createOrder"><Condition>(proxy.pathsuffix MatchesPath "/orders") and (request.verb = "POST")</Condition></Flow>
+  </Flows>
+  <HTTPProxyConnection><BasePath>/sales/v1</BasePath></HTTPProxyConnection>
+  <RouteRule name="default"><TargetEndpoint>default</TargetEndpoint></RouteRule>
+</ProxyEndpoint>`,
+'apigee-sales-v1-target.xml':`<TargetEndpoint name="default">
+  <HTTPTargetConnection>
+    <SSLInfo><Enabled>true</Enabled><Enforce>false</Enforce></SSLInfo>
+    <URL>https://erp.internal.example.com/orders</URL>
+  </HTTPTargetConnection>
+</TargetEndpoint>
+<VerifyAPIKey name="Verify-API-Key"><APIKey ref="request.header.x-api-key"/></VerifyAPIKey>`,
+'azure-apim-billing-policy.xml':`<policies>
+  <inbound>
+    <cors allow-credentials="true"><allowed-origins><origin>*</origin></allowed-origins></cors>
+    <set-backend-service base-url="http://billing-backend.internal.example.com/api" />
+  </inbound>
+  <backend><forward-request timeout="120" /></backend>
+  <outbound><base /></outbound>
+  <on-error><return-response><set-body>@(context.LastError.Message)</set-body></return-response></on-error>
+</policies>`,
+'wso2-inventory-api.xml':`<api xmlns="http://ws.apache.org/ns/synapse" name="InventoryAPI" context="/inventory" version="1.0.0" version-type="context">
+  <resource methods="GET" uri-template="/items/{id}">
+    <inSequence>
+      <log level="full"/>
+      <send><endpoint><address uri="http://10.30.2.8:9763/services/Inventory"/></endpoint></send>
+    </inSequence>
+  </resource>
+</api>`,
+'ace-server.conf.yaml':`RestAdminListener:
+  port: 7600
+  adminSecurity: 'inactive'
+ResourceManagers:
+  HTTPConnector:
+    ListenerPort: 7800`,
+'ace-billing.esql':`CREATE COMPUTE MODULE Billing_Compute
+  CREATE FUNCTION Main() RETURNS BOOLEAN
+  BEGIN
+    DECLARE acct CHARACTER InputRoot.JSON.Data.accountId;
+    SET OutputRoot.JSON.Data.rows[] = PASSTHRU('SELECT * FROM INVOICES WHERE ACCT = ''' || acct || '''');
+    RETURN TRUE;
+  END;
+END MODULE;`,
+'openapi-accounts.yaml':`openapi: 3.0.1
+info: {title: Accounts API, version: 2.1.0}
+servers: [{url: https://api.example.com/accounts/v2}]
+components:
+  securitySchemes:
+    oauth: {type: oauth2, flows: {clientCredentials: {tokenUrl: https://auth.example.com/token, scopes: {}}}}
+paths:
+  /accounts/{id}:
+    get: {security: [{oauth: []}], responses: {'200': {description: ok}}}
+  /accounts/{id}/statements:
+    get: {responses: {'200': {description: ok}}}
+  /admin/reindex:
+    post: {responses: {'202': {description: accepted}}}`,
+'gateway-edge.pem':CERT,
+'probe_results.csv':(()=>{const r=['endpoint,round,timestamp,status,latency_ms,error,tls_days_left,hsts,server_header,unauth_2xx,cors_reflect'];
+  const add=(u,data,first)=>data.forEach(([s,l],i)=>r.push([u,i+1,'2026-11-25T08:0'+i+':00',s,l,'',...(i?['','','','','']:first)].join(',')));
+  add('https://api.example.com/v1/customers',[[200,182],[200,201],[503,3010],[200,190],[502,2980]],[21,'no','nginx/1.18.0','yes','yes']);
+  add('https://api.example.com/v2/customers',[[401,95],[401,88],[401,102],[401,91],[401,97]],[21,'yes','','no','no']);
+  add('https://api.example.com/sales/v1/orders/test',[[200,2400],[200,2610],[200,2920],[200,1880],[200,2550]],[21,'yes','','no','no']);
+  return r.join('\n')})()
+};
+function loadSample(){S.files=[];for(const [n,t] of Object.entries(SAMPLE))S.files.push({id:S.fid++,name:n,text:t,platform:detect(n,t),aiF:[]});S.sample=true;$('#sampleNote').hidden=false;scan()}
+
+renderCols();
+loadSample();
+claude.use('sample').then(s=>{if(s)document.body.classList.remove('noai')});
+}
+</script>
+</body>
+</html>

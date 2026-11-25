@@ -230,6 +230,10 @@ Export findings into Excel or CSV format.
 - SheetJS / XLSX 0.18.5
 - Optional AI integration
 
+## 📸 Dashboard Preview
+
+![esb-gateway-api-security-scanner](ESB & Gateway Security Scanner Dashboard.png)
+
 ## Security and Privacy
 
 - Configuration files are processed locally in the browser for rule-based scanning.
@@ -264,4 +268,8 @@ Please submit issues or pull requests through GitHub.
 
 ## License
 
-Specify an appropriate open-source license before distributing this project. Use the MIT License only if you own or have permission to distribute all included code and dependencies under its terms.
+This project is licensed under the MIT License.
+
+You are free to use, copy, modify, distribute, and adapt this software in accordance with the MIT License terms.
+
+See the LICENSE file for details.
